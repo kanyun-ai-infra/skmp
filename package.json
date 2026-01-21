@@ -1,5 +1,5 @@
 {
-  "name": "skpm",
+  "name": "skmp",
   "version": "0.1.0",
   "description": "AI Skills Package Manager - Git-based skills management for AI agents",
   "type": "module",
@@ -7,7 +7,7 @@
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "skpm": "./dist/cli/index.js"
+    "skmp": "./dist/cli/index.js"
   },
   "exports": {
     ".": {

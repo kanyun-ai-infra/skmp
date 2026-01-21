@@ -10,7 +10,7 @@ describe('ConfigLoader', () => {
   let configLoader: ConfigLoader;
 
   beforeEach(() => {
-    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skpm-config-test-'));
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skmp-config-test-'));
     configLoader = new ConfigLoader(tempDir);
   });
 

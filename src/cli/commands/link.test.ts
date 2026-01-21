@@ -9,7 +9,7 @@ describe('link command', () => {
   let originalCwd: string;
 
   beforeEach(() => {
-    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skpm-link-test-'));
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skmp-link-test-'));
     originalCwd = process.cwd();
     process.chdir(tempDir);
     
@@ -61,7 +61,7 @@ describe('unlink command', () => {
   let originalCwd: string;
 
   beforeEach(() => {
-    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skpm-unlink-test-'));
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skmp-unlink-test-'));
     originalCwd = process.cwd();
     process.chdir(tempDir);
     

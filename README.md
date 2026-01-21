@@ -1,13 +1,13 @@
-# skpm
+# skmp
 
 **AI Skills Package Manager** - Git-based skills management for AI agents
 
-[![npm version](https://img.shields.io/npm/v/skpm.svg)](https://www.npmjs.com/package/skpm)
+[![npm version](https://img.shields.io/npm/v/skmp.svg)](https://www.npmjs.com/package/skmp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## 概述
 
-skpm 是一个基于 Git 的 AI Skills 包管理系统，类似 npm/Go modules 的架构，实现 AI Skills 的版本化管理、共享和复用。
+skmp 是一个基于 Git 的 AI Skills 包管理系统，类似 npm/Go modules 的架构，实现 AI Skills 的版本化管理、共享和复用。
 
 ## 特性
 
@@ -21,23 +21,23 @@ skpm 是一个基于 Git 的 AI Skills 包管理系统，类似 npm/Go modules �
 
 ```bash
 # 全局安装
-npm install -g skpm
+npm install -g skmp
 
 # 或使用 npx
-npx skpm <command>
+npx skmp <command>
 ```
 
 ## 快速开始
 
 ```bash
 # 1. 初始化项目
-skpm init
+skmp init
 
 # 2. 安装 skill
-skpm install github:user/my-skill@v1.0.0
+skmp install github:user/my-skill@v1.0.0
 
 # 3. 列出已安装的 skills
-skpm list
+skmp list
 ```
 
 ## 命令
@@ -45,40 +45,40 @@ skpm list
 ### 初始化
 
 ```bash
-skpm init                    # 创建 skills.json
-skpm init --name my-project  # 指定项目名称
-skpm init --registry gitlab  # 使用 gitlab 作为默认 registry
+skmp init                    # 创建 skills.json
+skmp init --name my-project  # 指定项目名称
+skmp init --registry gitlab  # 使用 gitlab 作为默认 registry
 ```
 
 ### 安装
 
 ```bash
-skpm install                          # 安装 skills.json 中的所有 skills
-skpm install <skill>                  # 安装单个 skill
-skpm install github:user/skill@v1.0.0 # 安装指定版本
-skpm install user/skill@latest        # 安装最新版本
-skpm install user/skill@^1.0.0        # 安装 semver 范围
-skpm install --force                  # 强制重新安装
+skmp install                          # 安装 skills.json 中的所有 skills
+skmp install <skill>                  # 安装单个 skill
+skmp install github:user/skill@v1.0.0 # 安装指定版本
+skmp install user/skill@latest        # 安装最新版本
+skmp install user/skill@^1.0.0        # 安装 semver 范围
+skmp install --force                  # 强制重新安装
 ```
 
 ### 管理
 
 ```bash
-skpm list                    # 列出已安装 skills
-skpm list --json             # JSON 格式输出
-skpm info <skill>            # 查看 skill 详情
-skpm update                  # 更新所有 skills
-skpm update <skill>          # 更新单个 skill
-skpm outdated                # 检查过期 skills
-skpm uninstall <skill>       # 卸载 skill
+skmp list                    # 列出已安装 skills
+skmp list --json             # JSON 格式输出
+skmp info <skill>            # 查看 skill 详情
+skmp update                  # 更新所有 skills
+skmp update <skill>          # 更新单个 skill
+skmp outdated                # 检查过期 skills
+skmp uninstall <skill>       # 卸载 skill
 ```
 
 ### 开发
 
 ```bash
-skpm link <path>             # 链接本地 skill（开发用）
-skpm link <path> --name xxx  # 链接并指定名称
-skpm unlink <skill>          # 取消链接
+skmp link <path>             # 链接本地 skill（开发用）
+skmp link <path> --name xxx  # 链接并指定名称
+skmp unlink <skill>          # 取消链接
 ```
 
 ## 配置文件
@@ -172,7 +172,7 @@ my-skill/
 
 | 变量 | 说明 | 默认值 |
 |-----|------|-------|
-| `SKPM_CACHE_DIR` | 全局缓存目录 | `~/.skpm-cache` |
+| `SKPM_CACHE_DIR` | 全局缓存目录 | `~/.skmp-cache` |
 | `DEBUG` | 启用调试日志 | - |
 
 ## 开发

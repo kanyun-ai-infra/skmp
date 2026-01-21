@@ -9,7 +9,7 @@ describe('list command', () => {
   let originalCwd: string;
 
   beforeEach(() => {
-    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skpm-list-test-'));
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skmp-list-test-'));
     originalCwd = process.cwd();
     process.chdir(tempDir);
     

@@ -9,7 +9,7 @@ describe('uninstall command', () => {
   let originalCwd: string;
 
   beforeEach(() => {
-    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skpm-uninstall-test-'));
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skmp-uninstall-test-'));
     originalCwd = process.cwd();
     process.chdir(tempDir);
     

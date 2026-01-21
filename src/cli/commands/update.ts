@@ -15,7 +15,7 @@ export const updateCommand = new Command('update')
     const configLoader = new ConfigLoader();
 
     if (!configLoader.exists()) {
-      logger.error("skills.json not found. Run 'skpm init' first.");
+      logger.error("skills.json not found. Run 'skmp init' first.");
       process.exit(1);
     }
 

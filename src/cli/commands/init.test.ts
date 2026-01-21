@@ -9,7 +9,7 @@ describe('init command', () => {
   let originalCwd: string;
 
   beforeEach(() => {
-    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skpm-init-test-'));
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skmp-init-test-'));
     originalCwd = process.cwd();
     process.chdir(tempDir);
     
