@@ -26,7 +26,7 @@ describe('fs utilities', () => {
   let tempDir: string;
 
   beforeEach(() => {
-    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skmp-test-'));
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'reskill-test-'));
   });
 
   afterEach(() => {
@@ -229,7 +229,7 @@ describe('fs utilities', () => {
 
     it('should return cache directory', () => {
       const cacheDir = getCacheDir();
-      expect(cacheDir).toContain('.skmp-cache');
+      expect(cacheDir).toContain('.reskill-cache');
     });
   });
 });

@@ -16,7 +16,7 @@ import {
 const program = new Command();
 
 program
-  .name('skmp')
+  .name('reskill')
   .description('AI Skills Package Manager - Git-based skills management for AI agents')
   .version('0.1.0');
 

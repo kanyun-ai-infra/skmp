@@ -10,7 +10,7 @@ describe('info command', () => {
   let exitSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
-    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skmp-info-test-'));
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'reskill-info-test-'));
     originalCwd = process.cwd();
     process.chdir(tempDir);
     

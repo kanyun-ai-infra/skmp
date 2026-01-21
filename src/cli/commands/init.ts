@@ -35,8 +35,8 @@ export const initCommand = new Command('init')
     logger.log(`  Install directory: ${config.defaults?.installDir}`);
     logger.newline();
     logger.log('Next steps:');
-    logger.log('  skmp install <skill>  Install a skill');
-    logger.log('  skmp list             List installed skills');
+    logger.log('  reskill install <skill>  Install a skill');
+    logger.log('  reskill list             List installed skills');
   });
 
 export default initCommand;

@@ -10,7 +10,7 @@ describe('LockManager', () => {
   let lockManager: LockManager;
 
   beforeEach(() => {
-    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skmp-lock-test-'));
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'reskill-lock-test-'));
     lockManager = new LockManager(tempDir);
   });
 

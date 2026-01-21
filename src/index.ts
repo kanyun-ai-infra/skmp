@@ -1,5 +1,5 @@
 /**
- * skmp - AI Skills Package Manager
+ * reskill - AI Skills Package Manager
  * 
  * Git-based skills management for AI agents
  */

@@ -1,8 +1,8 @@
 {
-  "$schema": "https://skmp.dev/schemas/skills.json",
+  "$schema": "https://reskill.dev/schemas/skills.json",
   "name": "test-project",
   "version": "1.0.0",
-  "description": "Test project for skmp fixtures",
+  "description": "Test project for reskill fixtures",
   "skills": {
     "planning-with-files": "github:OthmanAdi/planning-with-files@v1.0.0",
     "code-review": "gitlab:cortex/skills/code-review@latest"

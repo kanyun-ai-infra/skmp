@@ -27,7 +27,7 @@ npm-debug.log*
 
 # Skills installation (for testing)
 .skills/
-.skmp-cache/
+.reskill-cache/
 
 # Lock files (keep package-lock if using npm)
 # pnpm-lock.yaml

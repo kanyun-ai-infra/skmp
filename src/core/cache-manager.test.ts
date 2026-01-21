@@ -17,7 +17,7 @@ describe('CacheManager', () => {
   };
 
   beforeEach(() => {
-    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skmp-cache-test-'));
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'reskill-cache-test-'));
     cacheManager = new CacheManager(tempDir);
   });
 
@@ -70,7 +70,7 @@ describe('CacheManager', () => {
     it('should return cached info', async () => {
       const cachePath = cacheManager.getSkillCachePath(mockParsed, 'v1.0.0');
       fs.mkdirSync(cachePath, { recursive: true });
-      fs.writeFileSync(path.join(cachePath, '.skmp-commit'), 'abc123');
+      fs.writeFileSync(path.join(cachePath, '.reskill-commit'), 'abc123');
 
       const result = await cacheManager.get(mockParsed, 'v1.0.0');
       expect(result).not.toBeNull();

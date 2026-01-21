@@ -9,7 +9,7 @@ describe('SkillManager', () => {
   let skillManager: SkillManager;
 
   beforeEach(() => {
-    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'skmp-skill-manager-test-'));
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'reskill-skill-manager-test-'));
     skillManager = new SkillManager(tempDir);
   });
 

@@ -15,7 +15,7 @@ export const outdatedCommand = new Command('outdated')
     const configLoader = new ConfigLoader();
 
     if (!configLoader.exists()) {
-      logger.error("skills.json not found. Run 'skmp init' first.");
+      logger.error("skills.json not found. Run 'reskill init' first.");
       process.exit(1);
     }
 
@@ -61,8 +61,8 @@ export const outdatedCommand = new Command('outdated')
       logger.newline();
 
       if (outdated.length > 0) {
-        logger.log(`Run ${chalk.cyan('skmp update')} to update all skills`);
-        logger.log(`Or ${chalk.cyan('skmp update <skill>')} to update a specific skill`);
+        logger.log(`Run ${chalk.cyan('reskill update')} to update all skills`);
+        logger.log(`Or ${chalk.cyan('reskill update <skill>')} to update a specific skill`);
       }
     } catch (error) {
       spinner.fail('Check failed');

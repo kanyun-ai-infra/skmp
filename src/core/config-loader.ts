@@ -65,7 +65,7 @@ export class ConfigLoader {
 
     if (!this.exists()) {
       throw new Error(
-        `skills.json not found in ${this.projectRoot}. Run 'skmp init' first.`
+        `skills.json not found in ${this.projectRoot}. Run 'reskill init' first.`
       );
     }
 

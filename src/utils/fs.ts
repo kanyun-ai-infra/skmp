@@ -191,7 +191,7 @@ export function getSkillsDir(projectRoot?: string, installDir = '.skills'): stri
  */
 export function getCacheDir(): string {
   const home = process.env.HOME || process.env.USERPROFILE || '';
-  return process.env.SKMP_CACHE_DIR || path.join(home, '.skmp-cache');
+  return process.env.RESKILL_CACHE_DIR || path.join(home, '.reskill-cache');
 }
 
 /**

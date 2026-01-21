@@ -38,7 +38,7 @@ export const installCommand = new Command('install')
       }
 
       if (!configLoader.exists()) {
-        logger.error("skills.json not found. Run 'skmp init' first.");
+        logger.error("skills.json not found. Run 'reskill init' first.");
         process.exit(1);
       }
 

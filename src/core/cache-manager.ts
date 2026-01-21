@@ -15,7 +15,7 @@ import { clone, getCurrentCommit } from '../utils/git.js';
  * CacheManager - 管理全局 skill 缓存
  * 
  * 缓存目录结构:
- * ~/.skmp-cache/
+ * ~/.reskill-cache/
  * ├── github/                          # 简写格式的 registry
  * │   └── user/
  * │       └── skill/
@@ -52,9 +52,9 @@ export class CacheManager {
    * 获取 skill 在缓存中的路径
    * 
    * 对于不同的引用格式，缓存路径如下:
-   * - github:user/repo@v1.0.0 -> ~/.skmp-cache/github/user/repo/v1.0.0
-   * - git@github.com:user/repo.git@v1.0.0 -> ~/.skmp-cache/github.com/user/repo/v1.0.0
-   * - https://gitlab.company.com/team/skill.git@v2.0.0 -> ~/.skmp-cache/gitlab.company.com/team/skill/v2.0.0
+   * - github:user/repo@v1.0.0 -> ~/.reskill-cache/github/user/repo/v1.0.0
+   * - git@github.com:user/repo.git@v1.0.0 -> ~/.reskill-cache/github.com/user/repo/v1.0.0
+   * - https://gitlab.company.com/team/skill.git@v2.0.0 -> ~/.reskill-cache/gitlab.company.com/team/skill/v2.0.0
    */
   getSkillCachePath(parsed: ParsedSkillRef, version: string): string {
     return path.join(
@@ -88,7 +88,7 @@ export class CacheManager {
     }
 
     // 读取缓存的 commit 信息
-    const commitFile = path.join(cachePath, '.skmp-commit');
+    const commitFile = path.join(cachePath, '.reskill-commit');
     let commit = '';
     
     try {
@@ -144,7 +144,7 @@ export class CacheManager {
 
     // 保存 commit 信息
     const fs = await import('node:fs');
-    fs.writeFileSync(path.join(cachePath, '.skmp-commit'), commit);
+    fs.writeFileSync(path.join(cachePath, '.reskill-commit'), commit);
 
     // 清理临时目录
     remove(tempPath);
@@ -171,7 +171,7 @@ export class CacheManager {
       remove(destPath);
     }
 
-    copyDir(cached.path, destPath, { exclude: ['.skmp-commit'] });
+    copyDir(cached.path, destPath, { exclude: ['.reskill-commit'] });
   }
 
   /**
