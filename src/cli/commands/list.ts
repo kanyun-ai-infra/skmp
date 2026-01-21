@@ -1,4 +1,5 @@
 import { Command } from 'commander';
+import chalk from 'chalk';
 import { SkillManager } from '../../core/skill-manager.js';
 import { logger } from '../../utils/logger.js';
 
@@ -9,12 +10,15 @@ export const listCommand = new Command('list')
   .alias('ls')
   .description('List installed skills')
   .option('-j, --json', 'Output as JSON')
+  .option('-g, --global', 'List globally installed skills')
   .action((options) => {
-    const skillManager = new SkillManager();
+    const isGlobal = options.global || false;
+    const skillManager = new SkillManager(undefined, { global: isGlobal });
     const skills = skillManager.list();
 
     if (skills.length === 0) {
-      logger.info('No skills installed');
+      const location = isGlobal ? 'globally' : 'in this project';
+      logger.info(`No skills installed ${location}`);
       return;
     }
 
@@ -23,7 +27,8 @@ export const listCommand = new Command('list')
       return;
     }
 
-    logger.log(`Installed Skills (${skillManager.getInstallDir()}):`);
+    const locationLabel = isGlobal ? chalk.dim(' (global)') : '';
+    logger.log(`Installed Skills (${skillManager.getInstallDir()})${locationLabel}:`);
     logger.newline();
 
     const headers = ['Name', 'Version', 'Source'];

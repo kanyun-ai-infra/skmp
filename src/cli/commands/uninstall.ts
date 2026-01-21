@@ -10,8 +10,10 @@ export const uninstallCommand = new Command('uninstall')
   .alias('rm')
   .description('Uninstall a skill')
   .argument('<skill>', 'Skill name to uninstall')
-  .action((skillName) => {
-    const skillManager = new SkillManager();
+  .option('-g, --global', 'Uninstall from global installation (~/.claude/skills)')
+  .action((skillName, options) => {
+    const isGlobal = options.global || false;
+    const skillManager = new SkillManager(undefined, { global: isGlobal });
     const result = skillManager.uninstall(skillName);
 
     if (!result) {

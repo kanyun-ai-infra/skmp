@@ -14,14 +14,27 @@ import {
   createSymlink,
   getRealPath,
   ensureDir,
+  getGlobalSkillsDir,
 } from '../utils/fs.js';
 import { logger } from '../utils/logger.js';
+
+/**
+ * SkillManager 配置选项
+ */
+export interface SkillManagerOptions {
+  /** 全局模式，安装到 ~/.claude/skills */
+  global?: boolean;
+}
 
 /**
  * SkillManager - 核心 Skill 管理类
  * 
  * 整合 GitResolver, CacheManager, ConfigLoader, LockManager
  * 提供完整的 skill 安装、更新、卸载功能
+ * 
+ * 安装目录:
+ * - 项目模式 (默认): .skills/ 或 skills.json 中配置的目录
+ * - 全局模式 (-g): ~/.claude/skills/
  */
 export class SkillManager {
   private projectRoot: string;
@@ -29,9 +42,11 @@ export class SkillManager {
   private cache: CacheManager;
   private config: ConfigLoader;
   private lockManager: LockManager;
+  private isGlobal: boolean;
 
-  constructor(projectRoot?: string) {
+  constructor(projectRoot?: string, options?: SkillManagerOptions) {
     this.projectRoot = projectRoot || process.cwd();
+    this.isGlobal = options?.global || false;
     this.config = new ConfigLoader(this.projectRoot);
     this.lockManager = new LockManager(this.projectRoot);
     this.cache = new CacheManager();
@@ -39,6 +54,13 @@ export class SkillManager {
     // 使用配置中的默认 registry
     const defaults = this.config.getDefaults();
     this.resolver = new GitResolver(defaults.registry);
+  }
+
+  /**
+   * 是否为全局模式
+   */
+  isGlobalMode(): boolean {
+    return this.isGlobal;
   }
 
   /**
@@ -50,8 +72,14 @@ export class SkillManager {
 
   /**
    * 获取安装目录
+   * 
+   * - 全局模式: ~/.claude/skills/
+   * - 项目模式: .skills/ 或 skills.json 中配置的目录
    */
   getInstallDir(): string {
+    if (this.isGlobal) {
+      return getGlobalSkillsDir();
+    }
     return this.config.getInstallDir();
   }
 
@@ -113,20 +141,23 @@ export class SkillManager {
     
     await this.cache.copyTo(parsed, version, skillPath);
 
-    // 更新 lock 文件
-    this.lockManager.lockSkill(skillName, {
-      source: `${parsed.registry}:${parsed.owner}/${parsed.repo}${parsed.subPath ? '/' + parsed.subPath : ''}`,
-      version,
-      resolved: repoUrl,
-      commit: cacheResult.commit,
-    });
+    // 更新 lock 文件 (仅项目模式)
+    if (!this.isGlobal) {
+      this.lockManager.lockSkill(skillName, {
+        source: `${parsed.registry}:${parsed.owner}/${parsed.repo}${parsed.subPath ? '/' + parsed.subPath : ''}`,
+        version,
+        resolved: repoUrl,
+        commit: cacheResult.commit,
+      });
+    }
 
-    // 更新 skills.json
-    if (save && this.config.exists()) {
+    // 更新 skills.json (仅项目模式)
+    if (!this.isGlobal && save && this.config.exists()) {
       this.config.addSkill(skillName, ref);
     }
 
-    logger.success(`Installed ${skillName}@${version} to ${skillPath}`);
+    const locationHint = this.isGlobal ? '(global)' : '';
+    logger.success(`Installed ${skillName}@${version} to ${skillPath} ${locationHint}`.trim());
 
     return this.getInstalledSkill(skillName)!;
   }
@@ -157,22 +188,26 @@ export class SkillManager {
     const skillPath = this.getSkillPath(name);
 
     if (!exists(skillPath)) {
-      logger.warn(`Skill ${name} is not installed`);
+      const location = this.isGlobal ? '(global)' : '';
+      logger.warn(`Skill ${name} is not installed ${location}`.trim());
       return false;
     }
 
     // 删除安装目录
     remove(skillPath);
 
-    // 从 lock 文件移除
-    this.lockManager.remove(name);
+    // 从 lock 文件移除 (仅项目模式)
+    if (!this.isGlobal) {
+      this.lockManager.remove(name);
+    }
 
-    // 从 skills.json 移除
-    if (this.config.exists()) {
+    // 从 skills.json 移除 (仅项目模式)
+    if (!this.isGlobal && this.config.exists()) {
       this.config.removeSkill(name);
     }
 
-    logger.success(`Uninstalled ${name}`);
+    const locationHint = this.isGlobal ? '(global)' : '';
+    logger.success(`Uninstalled ${name} ${locationHint}`.trim());
     return true;
   }
 

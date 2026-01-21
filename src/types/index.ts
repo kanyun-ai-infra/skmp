@@ -235,6 +235,8 @@ export interface InstallOptions {
   force?: boolean;
   /** 保存到 skills.json */
   save?: boolean;
+  /** 全局安装到 ~/.claude/skills */
+  global?: boolean;
 }
 
 /**

@@ -27,6 +27,23 @@ describe('SkillManager', () => {
     it('should return default install directory', () => {
       expect(skillManager.getInstallDir()).toBe(path.join(tempDir, '.skills'));
     });
+
+    it('should return global install directory when in global mode', () => {
+      const globalManager = new SkillManager(tempDir, { global: true });
+      const home = process.env.HOME || process.env.USERPROFILE || '';
+      expect(globalManager.getInstallDir()).toBe(path.join(home, '.claude', 'skills'));
+    });
+  });
+
+  describe('isGlobalMode', () => {
+    it('should return false by default', () => {
+      expect(skillManager.isGlobalMode()).toBe(false);
+    });
+
+    it('should return true when global option is set', () => {
+      const globalManager = new SkillManager(tempDir, { global: true });
+      expect(globalManager.isGlobalMode()).toBe(true);
+    });
   });
 
   describe('getSkillPath', () => {
