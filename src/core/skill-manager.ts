@@ -516,7 +516,9 @@ export class SkillManager {
     for (const [name, ref] of Object.entries(skills)) {
       try {
         const locked = this.lockManager.get(name);
-        const current = locked?.version || 'unknown';
+        // Use ref for comparison (git tag/branch/commit), fallback to version for backward compatibility
+        const currentRef = locked?.ref || locked?.version || 'unknown';
+        const currentVersion = locked?.version || 'unknown';
 
         // Parse latest version
         const parsed = this.resolver.parseRef(ref);
@@ -530,11 +532,12 @@ export class SkillManager {
         });
 
         const latest = latestResolved.ref;
-        const updateAvailable = current !== latest && current !== 'unknown';
+        // Compare using git refs, not semantic versions
+        const updateAvailable = currentRef !== latest && currentRef !== 'unknown';
 
         results.push({
           name,
-          current,
+          current: currentVersion !== currentRef ? `${currentVersion} (${currentRef})` : currentRef,
           latest,
           updateAvailable,
         });
