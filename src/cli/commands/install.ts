@@ -7,8 +7,40 @@ import type { InstallMode } from '../../core/installer.js';
 import { SkillManager } from '../../core/skill-manager.js';
 import { shortenPath } from '../../utils/fs.js';
 
+// ============================================================================
+// Types
+// ============================================================================
+
+interface InstallOptions {
+  force?: boolean;
+  global?: boolean;
+  save?: boolean;
+  agent?: string[];
+  mode?: InstallMode;
+  yes?: boolean;
+  all?: boolean;
+}
+
+interface InstallContext {
+  skill: string | undefined;
+  options: InstallOptions;
+  configLoader: ConfigLoader;
+  allAgentTypes: AgentType[];
+  hasSkillsJson: boolean;
+  storedAgents: AgentType[] | undefined;
+  hasStoredAgents: boolean;
+  storedMode: InstallMode | undefined;
+  isReinstallAll: boolean;
+  skipConfirm: boolean;
+}
+
+// ============================================================================
+// Utility Functions
+// ============================================================================
+
 /**
  * Format agent names list for display
+ * Truncates long lists with "+N more" suffix
  */
 function formatAgentNames(agentTypes: AgentType[], maxShow = 5): string {
   const names = agentTypes.map((a) => agents[a].displayName);
@@ -21,19 +53,528 @@ function formatAgentNames(agentTypes: AgentType[], maxShow = 5): string {
 }
 
 /**
- * install command - Install a skill
+ * Format agent names with chalk coloring
+ */
+function formatColoredAgentNames(agentTypes: AgentType[]): string {
+  return agentTypes.map((a) => chalk.cyan(agents[a].displayName)).join(', ');
+}
+
+/**
+ * Filter valid agent types from stored configuration
+ */
+function filterValidAgents(
+  storedAgents: string[] | undefined,
+  validAgents: AgentType[],
+): AgentType[] | undefined {
+  if (!storedAgents || storedAgents.length === 0) {
+    return undefined;
+  }
+  const filtered = storedAgents.filter((a) =>
+    validAgents.includes(a as AgentType),
+  ) as AgentType[];
+  return filtered.length > 0 ? filtered : undefined;
+}
+
+/**
+ * Create install context from command arguments and options
+ */
+function createInstallContext(skill: string | undefined, options: InstallOptions): InstallContext {
+  const configLoader = new ConfigLoader();
+  const allAgentTypes = Object.keys(agents) as AgentType[];
+  const hasSkillsJson = configLoader.exists();
+
+  // Load stored defaults from skills.json
+  const storedDefaults = hasSkillsJson ? configLoader.getDefaults() : null;
+  const storedAgents = filterValidAgents(storedDefaults?.targetAgents, allAgentTypes);
+  const storedMode = storedDefaults?.installMode;
+
+  return {
+    skill,
+    options,
+    configLoader,
+    allAgentTypes,
+    hasSkillsJson,
+    storedAgents,
+    hasStoredAgents: !!storedAgents && storedAgents.length > 0,
+    storedMode,
+    isReinstallAll: !skill,
+    skipConfirm: options.yes ?? false,
+  };
+}
+
+// ============================================================================
+// Agent Selection Logic
+// ============================================================================
+
+/**
+ * Resolve target agents based on options and context
+ */
+async function resolveTargetAgents(
+  ctx: InstallContext,
+  spinner: ReturnType<typeof p.spinner>,
+): Promise<AgentType[]> {
+  const { options, allAgentTypes, storedAgents, hasStoredAgents, isReinstallAll } = ctx;
+
+  // Priority 1: --all flag
+  if (options.all) {
+    p.log.info(`Installing to all ${chalk.cyan(allAgentTypes.length)} agents`);
+    return allAgentTypes;
+  }
+
+  // Priority 2: -a/--agent flag
+  if (options.agent && options.agent.length > 0) {
+    return resolveAgentsFromCLI(options.agent, allAgentTypes);
+  }
+
+  // Priority 3: Reinstall all with stored agents
+  if (isReinstallAll && hasStoredAgents && storedAgents) {
+    p.log.info(`Using saved agents: ${formatColoredAgentNames(storedAgents)}`);
+    return storedAgents;
+  }
+
+  // Priority 4: Auto-detect and/or prompt
+  return await detectAndPromptAgents(ctx, spinner);
+}
+
+/**
+ * Resolve agents from CLI -a option
+ */
+function resolveAgentsFromCLI(agentArgs: string[], validAgents: AgentType[]): AgentType[] {
+  const invalidAgents = agentArgs.filter((a) => !validAgents.includes(a as AgentType));
+
+  if (invalidAgents.length > 0) {
+    p.log.error(`Invalid agents: ${invalidAgents.join(', ')}`);
+    p.log.info(`Valid agents: ${validAgents.join(', ')}`);
+    process.exit(1);
+  }
+
+  const targetAgents = agentArgs as AgentType[];
+  p.log.info(`Installing to: ${formatAgentNames(targetAgents)}`);
+  return targetAgents;
+}
+
+/**
+ * Auto-detect agents and optionally prompt user
+ */
+async function detectAndPromptAgents(
+  ctx: InstallContext,
+  spinner: ReturnType<typeof p.spinner>,
+): Promise<AgentType[]> {
+  const { allAgentTypes, storedAgents, hasStoredAgents, skipConfirm } = ctx;
+
+  spinner.start('Detecting installed agents...');
+  const installedAgents = await detectInstalledAgents();
+  spinner.stop(
+    `Detected ${chalk.green(installedAgents.length)} agent${installedAgents.length !== 1 ? 's' : ''}`,
+  );
+
+  // No agents detected
+  if (installedAgents.length === 0) {
+    if (skipConfirm) {
+      p.log.info('Installing to all agents (none detected)');
+      return allAgentTypes;
+    }
+    return await promptAgentSelection(allAgentTypes, hasStoredAgents ? storedAgents : allAgentTypes);
+  }
+
+  // Single agent or skip confirmation
+  if (installedAgents.length === 1 || skipConfirm) {
+    const displayNames = formatColoredAgentNames(installedAgents);
+    p.log.info(`Installing to: ${displayNames}`);
+    return installedAgents;
+  }
+
+  // Multiple agents: let user select
+  const initialAgents = hasStoredAgents ? storedAgents! : installedAgents;
+  return await promptAgentSelection(installedAgents, initialAgents, true);
+}
+
+/**
+ * Prompt user to select agents
+ */
+async function promptAgentSelection(
+  availableAgents: AgentType[],
+  initialValues: AgentType[] | undefined,
+  showHint = false,
+): Promise<AgentType[]> {
+  if (availableAgents.length === 0) {
+    p.log.warn('No coding agents detected. You can still install skills.');
+  }
+
+  const agentChoices = availableAgents.map((a) => ({
+    value: a,
+    label: agents[a].displayName,
+    ...(showHint && { hint: agents[a].skillsDir }),
+  }));
+
+  const selected = await p.multiselect({
+    message: `Select agents to install skills to ${chalk.dim('(Space to toggle, Enter to confirm)')}`,
+    options: agentChoices.length > 0 ? agentChoices : Object.entries(agents).map(([key, config]) => ({
+      value: key as AgentType,
+      label: config.displayName,
+    })),
+    required: true,
+    initialValues: initialValues ?? availableAgents,
+  });
+
+  if (p.isCancel(selected)) {
+    p.cancel('Installation cancelled');
+    process.exit(0);
+  }
+
+  return selected as AgentType[];
+}
+
+// ============================================================================
+// Installation Scope Logic
+// ============================================================================
+
+/**
+ * Resolve installation scope (global vs project)
+ */
+async function resolveInstallScope(ctx: InstallContext): Promise<boolean> {
+  const { options, hasSkillsJson, skipConfirm } = ctx;
+
+  // Explicit --global flag
+  if (options.global !== undefined) {
+    return options.global;
+  }
+
+  // Skip prompt if skills.json exists (default to project)
+  if (hasSkillsJson) {
+    p.log.info(`Found ${chalk.cyan('skills.json')}, installing to project`);
+    return false;
+  }
+
+  // Skip prompt if --yes
+  if (skipConfirm) {
+    return false;
+  }
+
+  // Prompt user
+  const scope = await p.select({
+    message: 'Installation scope',
+    options: [
+      {
+        value: false,
+        label: 'Project',
+        hint: 'Install in current directory (committed with your project)',
+      },
+      {
+        value: true,
+        label: 'Global',
+        hint: 'Install in home directory (available across all projects)',
+      },
+    ],
+  });
+
+  if (p.isCancel(scope)) {
+    p.cancel('Installation cancelled');
+    process.exit(0);
+  }
+
+  return scope as boolean;
+}
+
+// ============================================================================
+// Installation Mode Logic
+// ============================================================================
+
+/**
+ * Resolve installation mode (symlink vs copy)
+ */
+async function resolveInstallMode(ctx: InstallContext): Promise<InstallMode> {
+  const { options, storedMode, isReinstallAll, skipConfirm } = ctx;
+
+  // Priority 1: CLI --mode option
+  if (options.mode) {
+    return options.mode;
+  }
+
+  // Priority 2: Reinstall all with stored mode
+  if (isReinstallAll && storedMode) {
+    p.log.info(`Using saved install mode: ${chalk.cyan(storedMode)}`);
+    return storedMode;
+  }
+
+  // Priority 3: Skip confirmation
+  if (skipConfirm) {
+    return storedMode ?? 'symlink';
+  }
+
+  // Priority 4: Prompt user
+  const modeChoice = await p.select({
+    message: 'Installation method',
+    initialValue: storedMode ?? 'symlink',
+    options: [
+      {
+        value: 'symlink',
+        label: 'Symlink (Recommended)',
+        hint: 'Single source of truth, easy updates',
+      },
+      {
+        value: 'copy',
+        label: 'Copy to all agents',
+        hint: 'Independent copies for each agent',
+      },
+    ],
+  });
+
+  if (p.isCancel(modeChoice)) {
+    p.cancel('Installation cancelled');
+    process.exit(0);
+  }
+
+  return modeChoice as InstallMode;
+}
+
+// ============================================================================
+// Installation Execution
+// ============================================================================
+
+/**
+ * Install all skills from skills.json
+ */
+async function installAllSkills(
+  ctx: InstallContext,
+  targetAgents: AgentType[],
+  installMode: InstallMode,
+  spinner: ReturnType<typeof p.spinner>,
+): Promise<void> {
+  const { configLoader, options } = ctx;
+
+  if (!configLoader.exists()) {
+    p.log.error("skills.json not found. Run 'reskill init' first.");
+    process.exit(1);
+  }
+
+  const skills = configLoader.getSkills();
+  if (Object.keys(skills).length === 0) {
+    p.log.info('No skills defined in skills.json');
+    p.outro('Done');
+    return;
+  }
+
+  // Show installation summary
+  displayInstallSummary({
+    skillCount: Object.keys(skills).length,
+    agentCount: targetAgents.length,
+    scope: 'Project (./) ',
+    mode: installMode,
+  });
+
+  // Execute installation (no confirmation for reinstall all)
+  spinner.start('Installing skills...');
+
+  const skillManager = new SkillManager(undefined, { global: false });
+  let totalInstalled = 0;
+  let totalFailed = 0;
+
+  for (const [name, ref] of Object.entries(skills)) {
+    try {
+      const { results } = await skillManager.installToAgents(ref, targetAgents, {
+        force: options.force,
+        save: false, // Already in skills.json
+        mode: installMode,
+      });
+
+      const successCount = Array.from(results.values()).filter((r) => r.success).length;
+      totalInstalled += successCount;
+      totalFailed += results.size - successCount;
+    } catch (error) {
+      p.log.error(`Failed to install ${name}: ${(error as Error).message}`);
+      totalFailed += targetAgents.length;
+    }
+  }
+
+  spinner.stop('Installation complete');
+
+  // Show results
+  displayInstallResults(Object.keys(skills).length, targetAgents.length, totalInstalled, totalFailed);
+
+  // Save installation defaults
+  if (totalInstalled > 0) {
+    configLoader.updateDefaults({ targetAgents, installMode });
+  }
+}
+
+/**
+ * Install a single skill
+ */
+async function installSingleSkill(
+  ctx: InstallContext,
+  targetAgents: AgentType[],
+  installGlobally: boolean,
+  installMode: InstallMode,
+  spinner: ReturnType<typeof p.spinner>,
+): Promise<void> {
+  const { skill, options, configLoader, skipConfirm } = ctx;
+  const cwd = process.cwd();
+
+  // Show installation summary
+  const summaryLines = [
+    chalk.cyan(skill),
+    `  ${chalk.dim('→')} ${formatAgentNames(targetAgents)}`,
+    `  ${chalk.dim('Scope:')} ${installGlobally ? 'Global' : 'Project'}${chalk.dim(', Mode:')} ${installMode}`,
+  ];
+  p.note(summaryLines.join('\n'), 'Installation Summary');
+
+  // Confirm installation
+  if (!skipConfirm) {
+    const confirmed = await p.confirm({ message: 'Proceed with installation?' });
+    if (p.isCancel(confirmed) || !confirmed) {
+      p.cancel('Installation cancelled');
+      process.exit(0);
+    }
+  }
+
+  // Execute installation
+  spinner.start(`Installing ${skill}...`);
+
+  const skillManager = new SkillManager(undefined, { global: installGlobally });
+  const { skill: installed, results } = await skillManager.installToAgents(skill!, targetAgents, {
+    force: options.force,
+    save: options.save !== false && !installGlobally,
+    mode: installMode,
+  });
+
+  spinner.stop('Installation complete');
+
+  // Process and display results
+  const successful = Array.from(results.entries()).filter(([, r]) => r.success);
+  const failed = Array.from(results.entries()).filter(([, r]) => !r.success);
+
+  displaySingleSkillResults(installed, successful, failed, cwd);
+
+  // Save installation defaults (only for project installs with success)
+  if (!installGlobally && successful.length > 0 && configLoader.exists()) {
+    configLoader.reload(); // Sync with SkillManager's changes
+    configLoader.updateDefaults({ targetAgents, installMode });
+  }
+}
+
+// ============================================================================
+// Display Helpers
+// ============================================================================
+
+interface SummaryInfo {
+  skillCount: number;
+  agentCount: number;
+  scope: string;
+  mode: InstallMode;
+}
+
+/**
+ * Display installation summary note
+ */
+function displayInstallSummary(info: SummaryInfo): void {
+  const summaryLines = [
+    `${chalk.cyan(info.skillCount)} skill(s) → ${chalk.cyan(info.agentCount)} agent(s)`,
+    `${chalk.dim('Scope:')} ${info.scope}${chalk.dim(', Mode:')} ${info.mode}`,
+  ];
+  p.note(summaryLines.join('\n'), 'Installation Summary');
+}
+
+/**
+ * Display installation results for batch install
+ */
+function displayInstallResults(
+  skillCount: number,
+  agentCount: number,
+  totalInstalled: number,
+  totalFailed: number,
+): void {
+  if (totalFailed === 0) {
+    p.log.success(
+      `Installed ${chalk.green(skillCount)} skill(s) to ${chalk.green(agentCount)} agent(s)`,
+    );
+  } else {
+    p.log.warn(
+      `Installed ${chalk.green(totalInstalled)} successfully, ${chalk.red(totalFailed)} failed`,
+    );
+  }
+}
+
+/**
+ * Display results for single skill installation
+ */
+function displaySingleSkillResults(
+  installed: { name: string; version: string },
+  successful: [AgentType, { success: boolean; path: string; mode: InstallMode; canonicalPath?: string; symlinkFailed?: boolean }][],
+  failed: [AgentType, { success: boolean; error?: string }][],
+  cwd: string,
+): void {
+  if (successful.length > 0) {
+    const resultLines: string[] = [];
+    const firstResult = successful[0][1];
+
+    if (firstResult.mode === 'copy') {
+      resultLines.push(
+        `${chalk.green('✓')} ${installed.name}@${installed.version} ${chalk.dim('(copied)')}`,
+      );
+      for (const [, result] of successful) {
+        resultLines.push(`  ${chalk.dim('→')} ${shortenPath(result.path, cwd)}`);
+      }
+    } else {
+      // Symlink mode
+      const displayPath = firstResult.canonicalPath
+        ? shortenPath(firstResult.canonicalPath, cwd)
+        : `${installed.name}@${installed.version}`;
+      resultLines.push(`${chalk.green('✓')} ${displayPath}`);
+
+      const symlinked = successful.filter(([, r]) => !r.symlinkFailed).map(([a]) => agents[a].displayName);
+      const copied = successful.filter(([, r]) => r.symlinkFailed).map(([a]) => agents[a].displayName);
+
+      if (symlinked.length > 0) {
+        resultLines.push(`  ${chalk.dim('symlink →')} ${symlinked.join(', ')}`);
+      }
+      if (copied.length > 0) {
+        resultLines.push(`  ${chalk.yellow('copied →')} ${copied.join(', ')}`);
+      }
+    }
+
+    p.note(
+      resultLines.join('\n'),
+      chalk.green(`Installed 1 skill to ${successful.length} agent${successful.length !== 1 ? 's' : ''}`),
+    );
+
+    // Symlink failure warning
+    const symlinkFailed = successful.filter(([, r]) => r.mode === 'symlink' && r.symlinkFailed);
+    if (symlinkFailed.length > 0) {
+      const copiedAgentNames = symlinkFailed.map(([a]) => agents[a].displayName);
+      p.log.warn(chalk.yellow(`Symlinks failed for: ${copiedAgentNames.join(', ')}`));
+      p.log.message(
+        chalk.dim('  Files were copied instead. On Windows, enable Developer Mode for symlink support.'),
+      );
+    }
+  }
+
+  // Show failure message
+  if (failed.length > 0) {
+    p.log.error(chalk.red(`Failed to install to ${failed.length} agent(s)`));
+    for (const [agent, result] of failed) {
+      p.log.message(`  ${chalk.red('✗')} ${agents[agent].displayName}: ${chalk.dim(result.error)}`);
+    }
+  }
+}
+
+// ============================================================================
+// Command Definition
+// ============================================================================
+
+/**
+ * install command - Install a skill or all skills from skills.json
  *
- * Supports multiple installation modes:
- * - Project install (default): Install to project directory
- * - Global install (-g): Install to user home directory
- * - Multi-Agent install (-a): Install to specified agents
+ * Installation Flow:
+ * 1. Resolve target agents (CLI > stored > detected > prompt)
+ * 2. Resolve installation scope (global vs project)
+ * 3. Resolve installation mode (symlink vs copy)
+ * 4. Execute installation
+ * 5. Save defaults for future installs
  *
- * Interactive flow:
- * 1. Detect installed agents
- * 2. Select target agents (multi-select)
- * 3. Select installation scope (project/global)
- * 4. Select installation method (symlink/copy)
- * 5. Confirm and execute
+ * Behavior:
+ * - Single skill install: Prompts for agents/mode (stored config as defaults)
+ * - Reinstall all (no args): Uses stored config directly, no confirmation
  */
 export const installCommand = new Command('install')
   .alias('i')
@@ -49,16 +590,15 @@ export const installCommand = new Command('install')
   .option('--mode <mode>', 'Installation mode: symlink or copy')
   .option('-y, --yes', 'Skip confirmation prompts')
   .option('--all', 'Install to all agents (implies -y -g)')
-  .action(async (skill, options) => {
-    // --all automatically enables yes and global
+  .action(async (skill: string | undefined, options: InstallOptions) => {
+    // Handle --all flag implications
     if (options.all) {
       options.yes = true;
       options.global = true;
     }
 
-    const skipConfirm = options.yes || false;
-    const configLoader = new ConfigLoader();
-    const allAgentTypes = Object.keys(agents) as AgentType[];
+    // Create execution context
+    const ctx = createInstallContext(skill, options);
 
     // Print banner
     console.log();
@@ -67,353 +607,29 @@ export const installCommand = new Command('install')
     try {
       const spinner = p.spinner();
 
-      // ========================================
-      // Step 1: Parse target agents
-      // ========================================
-      let targetAgents: AgentType[];
+      // Step 1: Resolve target agents
+      const targetAgents = await resolveTargetAgents(ctx, spinner);
 
-      if (options.all) {
-        // --all: Install to all agents
-        targetAgents = allAgentTypes;
-        p.log.info(`Installing to all ${chalk.cyan(targetAgents.length)} agents`);
-      } else if (options.agent && options.agent.length > 0) {
-        // -a: Specified agents
-        const validAgents = Object.keys(agents);
-        const invalidAgents = options.agent.filter((a: string) => !validAgents.includes(a));
+      // Step 2: Resolve installation scope
+      const installGlobally = await resolveInstallScope(ctx);
 
-        if (invalidAgents.length > 0) {
-          p.log.error(`Invalid agents: ${invalidAgents.join(', ')}`);
-          p.log.info(`Valid agents: ${validAgents.join(', ')}`);
-          process.exit(1);
-        }
+      // Validate: Cannot install all skills globally
+      if (ctx.isReinstallAll && installGlobally) {
+        p.log.error('Cannot install all skills globally. Please specify a skill to install.');
+        process.exit(1);
+      }
 
-        targetAgents = options.agent as AgentType[];
-        p.log.info(`Installing to: ${formatAgentNames(targetAgents)}`);
+      // Step 3: Resolve installation mode
+      const installMode = await resolveInstallMode(ctx);
+
+      // Step 4: Execute installation
+      if (ctx.isReinstallAll) {
+        await installAllSkills(ctx, targetAgents, installMode, spinner);
       } else {
-        // Auto-detect installed agents
-        spinner.start('Detecting installed agents...');
-        const installedAgents = await detectInstalledAgents();
-        spinner.stop(
-          `Detected ${chalk.green(installedAgents.length)} agent${installedAgents.length !== 1 ? 's' : ''}`,
-        );
-
-        if (installedAgents.length === 0) {
-          if (skipConfirm) {
-            targetAgents = allAgentTypes;
-            p.log.info('Installing to all agents (none detected)');
-          } else {
-            p.log.warn('No coding agents detected. You can still install skills.');
-
-            // Let user select agents to install to
-            const allAgentChoices = Object.entries(agents).map(([key, config]) => ({
-              value: key as AgentType,
-              label: config.displayName,
-            }));
-
-            const selected = await p.multiselect({
-              message: `Select agents to install skills to ${chalk.dim('(Space to toggle, Enter to confirm)')}`,
-              options: allAgentChoices,
-              required: true,
-              initialValues: allAgentTypes,
-            });
-
-            if (p.isCancel(selected)) {
-              p.cancel('Installation cancelled');
-              process.exit(0);
-            }
-
-            targetAgents = selected as AgentType[];
-          }
-        } else if (installedAgents.length === 1 || skipConfirm) {
-          // Only one agent or skip confirmation, use detected agents
-          targetAgents = installedAgents;
-          if (installedAgents.length === 1) {
-            p.log.info(`Installing to: ${chalk.cyan(agents[installedAgents[0]].displayName)}`);
-          } else {
-            p.log.info(
-              `Installing to: ${installedAgents.map((a) => chalk.cyan(agents[a].displayName)).join(', ')}`,
-            );
-          }
-        } else {
-          // Multiple agents, let user select
-          const agentChoices = installedAgents.map((a) => ({
-            value: a,
-            label: agents[a].displayName,
-            hint: agents[a].skillsDir,
-          }));
-
-          const selected = await p.multiselect({
-            message: `Select agents to install skills to ${chalk.dim('(Space to toggle, Enter to confirm)')}`,
-            options: agentChoices,
-            required: true,
-            initialValues: installedAgents,
-          });
-
-          if (p.isCancel(selected)) {
-            p.cancel('Installation cancelled');
-            process.exit(0);
-          }
-
-          targetAgents = selected as AgentType[];
-        }
+        await installSingleSkill(ctx, targetAgents, installGlobally, installMode, spinner);
       }
 
-      // ========================================
-      // Step 2: Select installation scope
-      // ========================================
-      let installGlobally = options.global ?? false;
-
-      // If skills.json exists, default to project install (skip scope selection)
-      const hasSkillsJson = configLoader.exists();
-
-      if (options.global === undefined && !skipConfirm && !hasSkillsJson) {
-        const scope = await p.select({
-          message: 'Installation scope',
-          options: [
-            {
-              value: false,
-              label: 'Project',
-              hint: 'Install in current directory (committed with your project)',
-            },
-            {
-              value: true,
-              label: 'Global',
-              hint: 'Install in home directory (available across all projects)',
-            },
-          ],
-        });
-
-        if (p.isCancel(scope)) {
-          p.cancel('Installation cancelled');
-          process.exit(0);
-        }
-
-        installGlobally = scope as boolean;
-      } else if (hasSkillsJson && options.global === undefined) {
-        // skills.json exists, use project install by default
-        p.log.info(`Found ${chalk.cyan('skills.json')}, installing to project`);
-      }
-
-      // ========================================
-      // Step 3: Select installation method
-      // ========================================
-      let installMode: InstallMode = options.mode || 'symlink';
-
-      if (!options.mode && !skipConfirm) {
-        const modeChoice = await p.select({
-          message: 'Installation method',
-          options: [
-            {
-              value: 'symlink',
-              label: 'Symlink (Recommended)',
-              hint: 'Single source of truth, easy updates',
-            },
-            {
-              value: 'copy',
-              label: 'Copy to all agents',
-              hint: 'Independent copies for each agent',
-            },
-          ],
-        });
-
-        if (p.isCancel(modeChoice)) {
-          p.cancel('Installation cancelled');
-          process.exit(0);
-        }
-
-        installMode = modeChoice as InstallMode;
-      }
-
-      // Create SkillManager
-      const skillManager = new SkillManager(undefined, { global: installGlobally });
-      const cwd = process.cwd();
-
-      // ========================================
-      // Installation logic
-      // ========================================
-      if (!skill) {
-        // Install all from skills.json
-        if (installGlobally) {
-          p.log.error('Cannot install all skills globally. Please specify a skill to install.');
-          process.exit(1);
-        }
-
-        if (!configLoader.exists()) {
-          p.log.error("skills.json not found. Run 'reskill init' first.");
-          process.exit(1);
-        }
-
-        const skills = configLoader.getSkills();
-        if (Object.keys(skills).length === 0) {
-          p.log.info('No skills defined in skills.json');
-          p.outro('Done');
-          return;
-        }
-
-        // Show installation summary
-        const summaryLines: string[] = [];
-        summaryLines.push(
-          `${chalk.cyan(Object.keys(skills).length)} skill(s) → ${chalk.cyan(targetAgents.length)} agent(s)`,
-        );
-        summaryLines.push(
-          `${chalk.dim('Scope:')} ${installGlobally ? 'Global (~/)' : 'Project (./)'}${chalk.dim(', Mode:')} ${installMode}`,
-        );
-
-        p.note(summaryLines.join('\n'), 'Installation Summary');
-
-        if (!skipConfirm) {
-          const confirmed = await p.confirm({
-            message: 'Proceed with installation?',
-          });
-
-          if (p.isCancel(confirmed) || !confirmed) {
-            p.cancel('Installation cancelled');
-            process.exit(0);
-          }
-        }
-
-        spinner.start('Installing skills...');
-
-        let totalInstalled = 0;
-        let totalFailed = 0;
-
-        for (const [name, ref] of Object.entries(skills)) {
-          try {
-            const { results } = await skillManager.installToAgents(ref, targetAgents, {
-              force: options.force,
-              save: false,
-              mode: installMode,
-            });
-
-            const successCount = Array.from(results.values()).filter((r) => r.success).length;
-            totalInstalled += successCount;
-            totalFailed += results.size - successCount;
-          } catch (error) {
-            p.log.error(`Failed to install ${name}: ${(error as Error).message}`);
-            totalFailed += targetAgents.length;
-          }
-        }
-
-        spinner.stop('Installation complete');
-
-        // Show results
-        if (totalFailed === 0) {
-          p.log.success(
-            `Installed ${chalk.green(Object.keys(skills).length)} skill(s) to ${chalk.green(targetAgents.length)} agent(s)`,
-          );
-        } else {
-          p.log.warn(
-            `Installed ${chalk.green(totalInstalled)} successfully, ${chalk.red(totalFailed)} failed`,
-          );
-        }
-      } else {
-        // Install single skill
-
-        // Show installation summary
-        const summaryLines: string[] = [];
-        summaryLines.push(`${chalk.cyan(skill)}`);
-        summaryLines.push(`  ${chalk.dim('→')} ${formatAgentNames(targetAgents)}`);
-        summaryLines.push(
-          `  ${chalk.dim('Scope:')} ${installGlobally ? 'Global' : 'Project'}${chalk.dim(', Mode:')} ${installMode}`,
-        );
-
-        p.note(summaryLines.join('\n'), 'Installation Summary');
-
-        if (!skipConfirm) {
-          const confirmed = await p.confirm({
-            message: 'Proceed with installation?',
-          });
-
-          if (p.isCancel(confirmed) || !confirmed) {
-            p.cancel('Installation cancelled');
-            process.exit(0);
-          }
-        }
-
-        spinner.start(`Installing ${skill}...`);
-
-        const { skill: installed, results } = await skillManager.installToAgents(
-          skill,
-          targetAgents,
-          {
-            force: options.force,
-            save: options.save && !installGlobally,
-            mode: installMode,
-          },
-        );
-
-        spinner.stop('Installation complete');
-
-        // Count results
-        const successful = Array.from(results.entries()).filter(([, r]) => r.success);
-        const failed = Array.from(results.entries()).filter(([, r]) => !r.success);
-        const symlinkFailed = successful.filter(([, r]) => r.mode === 'symlink' && r.symlinkFailed);
-
-        // Show success message
-        if (successful.length > 0) {
-          const resultLines: string[] = [];
-          const firstResult = successful[0][1];
-
-          if (firstResult.mode === 'copy') {
-            resultLines.push(
-              `${chalk.green('✓')} ${installed.name}@${installed.version} ${chalk.dim('(copied)')}`,
-            );
-            for (const [, result] of successful) {
-              const shortPath = shortenPath(result.path, cwd);
-              resultLines.push(`  ${chalk.dim('→')} ${shortPath}`);
-            }
-          } else {
-            // Symlink mode
-            if (firstResult.canonicalPath) {
-              const shortPath = shortenPath(firstResult.canonicalPath, cwd);
-              resultLines.push(`${chalk.green('✓')} ${shortPath}`);
-            } else {
-              resultLines.push(`${chalk.green('✓')} ${installed.name}@${installed.version}`);
-            }
-
-            const symlinked = successful
-              .filter(([, r]) => !r.symlinkFailed)
-              .map(([a]) => agents[a].displayName);
-            const copied = successful
-              .filter(([, r]) => r.symlinkFailed)
-              .map(([a]) => agents[a].displayName);
-
-            if (symlinked.length > 0) {
-              resultLines.push(`  ${chalk.dim('symlink →')} ${symlinked.join(', ')}`);
-            }
-            if (copied.length > 0) {
-              resultLines.push(`  ${chalk.yellow('copied →')} ${copied.join(', ')}`);
-            }
-          }
-
-          const title = chalk.green(
-            `Installed 1 skill to ${successful.length} agent${successful.length !== 1 ? 's' : ''}`,
-          );
-          p.note(resultLines.join('\n'), title);
-
-          // Symlink failure warning
-          if (symlinkFailed.length > 0) {
-            const copiedAgentNames = symlinkFailed.map(([a]) => agents[a].displayName);
-            p.log.warn(chalk.yellow(`Symlinks failed for: ${copiedAgentNames.join(', ')}`));
-            p.log.message(
-              chalk.dim(
-                '  Files were copied instead. On Windows, enable Developer Mode for symlink support.',
-              ),
-            );
-          }
-        }
-
-        // Show failure message
-        if (failed.length > 0) {
-          p.log.error(chalk.red(`Failed to install to ${failed.length} agent(s)`));
-          for (const [agent, result] of failed) {
-            p.log.message(
-              `  ${chalk.red('✗')} ${agents[agent].displayName}: ${chalk.dim(result.error)}`,
-            );
-          }
-        }
-      }
-
+      // Done
       console.log();
       p.outro(chalk.green('Done!'));
     } catch (error) {

@@ -105,6 +105,8 @@ describe('ConfigLoader', () => {
       const defaults = configLoader.getDefaults();
       expect(defaults.registry).toBe('github');
       expect(defaults.installDir).toBe('.skills');
+      expect(defaults.targetAgents).toEqual([]);
+      expect(defaults.installMode).toBe('symlink');
     });
 
     it('should return config values', () => {
@@ -118,6 +120,83 @@ describe('ConfigLoader', () => {
       const defaults = configLoader.getDefaults();
       expect(defaults.registry).toBe('gitlab');
       expect(defaults.installDir).toBe('custom');
+    });
+
+    it('should return stored targetAgents and installMode', () => {
+      configLoader.create({
+        defaults: {
+          targetAgents: ['cursor', 'claude-code'],
+          installMode: 'copy',
+        },
+      });
+
+      const defaults = configLoader.getDefaults();
+      expect(defaults.targetAgents).toEqual(['cursor', 'claude-code']);
+      expect(defaults.installMode).toBe('copy');
+    });
+  });
+
+  describe('updateDefaults', () => {
+    beforeEach(() => {
+      configLoader.create();
+    });
+
+    it('should update targetAgents', () => {
+      configLoader.updateDefaults({
+        targetAgents: ['cursor', 'claude-code'],
+      });
+
+      const defaults = configLoader.getDefaults();
+      expect(defaults.targetAgents).toEqual(['cursor', 'claude-code']);
+      // Other defaults should remain unchanged
+      expect(defaults.registry).toBe('github');
+      expect(defaults.installDir).toBe('.skills');
+    });
+
+    it('should update installMode', () => {
+      configLoader.updateDefaults({
+        installMode: 'copy',
+      });
+
+      const defaults = configLoader.getDefaults();
+      expect(defaults.installMode).toBe('copy');
+    });
+
+    it('should update multiple defaults at once', () => {
+      configLoader.updateDefaults({
+        targetAgents: ['windsurf'],
+        installMode: 'copy',
+      });
+
+      const defaults = configLoader.getDefaults();
+      expect(defaults.targetAgents).toEqual(['windsurf']);
+      expect(defaults.installMode).toBe('copy');
+    });
+
+    it('should persist updates to file', () => {
+      configLoader.updateDefaults({
+        targetAgents: ['cursor'],
+        installMode: 'symlink',
+      });
+
+      // Create new loader to read from file
+      const newLoader = new ConfigLoader(tempDir);
+      const defaults = newLoader.getDefaults();
+      expect(defaults.targetAgents).toEqual(['cursor']);
+      expect(defaults.installMode).toBe('symlink');
+    });
+
+    it('should merge with existing defaults', () => {
+      configLoader.updateDefaults({
+        targetAgents: ['cursor'],
+      });
+      configLoader.updateDefaults({
+        installMode: 'copy',
+      });
+
+      const defaults = configLoader.getDefaults();
+      expect(defaults.targetAgents).toEqual(['cursor']);
+      expect(defaults.installMode).toBe('copy');
     });
   });
 

@@ -2,8 +2,12 @@ import * as path from 'node:path';
 import type { SkillsDefaults, SkillsJson } from '../types/index.js';
 import { exists, getSkillsJsonPath, readJson, writeJson } from '../utils/fs.js';
 
+// ============================================================================
+// Constants
+// ============================================================================
+
 /**
- * Default configuration
+ * Default skills.json configuration template
  */
 const DEFAULT_SKILLS_JSON: SkillsJson = {
   skills: {},
@@ -14,25 +18,58 @@ const DEFAULT_SKILLS_JSON: SkillsJson = {
 };
 
 /**
- * Default registry URLs
+ * Default values for SkillsDefaults fields
+ */
+const DEFAULT_VALUES: Required<SkillsDefaults> = {
+  registry: 'github',
+  installDir: '.skills',
+  targetAgents: [],
+  installMode: 'symlink',
+};
+
+/**
+ * Well-known registry URLs
  */
 export const DEFAULT_REGISTRIES: Record<string, string> = {
   github: 'https://github.com',
   gitlab: 'https://gitlab.com',
 };
 
+// ============================================================================
+// ConfigLoader Class
+// ============================================================================
+
 /**
  * ConfigLoader - Load and manage skills.json configuration
+ *
+ * Handles reading, writing, and managing the project's skills.json file.
+ * Provides methods for:
+ * - Loading/saving configuration
+ * - Managing skill dependencies
+ * - Managing default settings (registry, installDir, targetAgents, installMode)
+ *
+ * @example
+ * ```ts
+ * const config = new ConfigLoader();
+ * if (config.exists()) {
+ *   const defaults = config.getDefaults();
+ *   console.log(defaults.targetAgents);
+ * }
+ * ```
  */
 export class ConfigLoader {
-  private projectRoot: string;
-  private configPath: string;
+  private readonly projectRoot: string;
+  private readonly configPath: string;
   private config: SkillsJson | null = null;
 
   constructor(projectRoot?: string) {
-    this.projectRoot = projectRoot || process.cwd();
+    this.projectRoot = projectRoot ?? process.cwd();
     this.configPath = getSkillsJsonPath(this.projectRoot);
   }
+
+  // ==========================================================================
+  // Path Accessors
+  // ==========================================================================
 
   /**
    * Get project root directory
@@ -49,6 +86,18 @@ export class ConfigLoader {
   }
 
   /**
+   * Get installation directory (resolved absolute path)
+   */
+  getInstallDir(): string {
+    const { installDir } = this.getDefaults();
+    return path.join(this.projectRoot, installDir);
+  }
+
+  // ==========================================================================
+  // File Operations
+  // ==========================================================================
+
+  /**
    * Check if configuration file exists
    */
   exists(): boolean {
@@ -56,7 +105,9 @@ export class ConfigLoader {
   }
 
   /**
-   * Load configuration
+   * Load configuration from file
+   *
+   * @throws Error if file doesn't exist or is invalid JSON
    */
   load(): SkillsJson {
     if (this.config) {
@@ -76,7 +127,7 @@ export class ConfigLoader {
   }
 
   /**
-   * Reload configuration (ignore cache)
+   * Reload configuration from file (ignores cache)
    */
   reload(): SkillsJson {
     this.config = null;
@@ -84,10 +135,13 @@ export class ConfigLoader {
   }
 
   /**
-   * Save configuration
+   * Save configuration to file
+   *
+   * @param config - Configuration to save (uses cached config if not provided)
+   * @throws Error if no configuration to save
    */
   save(config?: SkillsJson): void {
-    const toSave = config || this.config;
+    const toSave = config ?? this.config;
     if (!toSave) {
       throw new Error('No config to save');
     }
@@ -109,13 +163,15 @@ export class ConfigLoader {
   }
 
   /**
-   * Create default configuration
+   * Create new configuration file with defaults
+   *
+   * @param options - Optional overrides for default configuration
    */
   create(options?: Partial<SkillsJson>): SkillsJson {
     const config: SkillsJson = {
       ...DEFAULT_SKILLS_JSON,
       ...options,
-      skills: options?.skills || {},
+      skills: options?.skills ?? {},
       defaults: {
         ...DEFAULT_SKILLS_JSON.defaults,
         ...options?.defaults,
@@ -126,31 +182,68 @@ export class ConfigLoader {
     return config;
   }
 
+  // ==========================================================================
+  // Defaults Management
+  // ==========================================================================
+
   /**
-   * Get default configuration
+   * Get default configuration values
+   *
+   * Returns a complete defaults object with all fields populated.
+   * Uses stored values if available, falls back to defaults.
    */
   getDefaults(): Required<SkillsDefaults> {
-    const config = this.config || (this.exists() ? this.load() : DEFAULT_SKILLS_JSON);
+    const config = this.getConfigOrDefault();
+    const storedDefaults = config.defaults ?? {};
+
     return {
-      registry: config.defaults?.registry || 'github',
-      installDir: config.defaults?.installDir || '.skills',
-      targetAgents: config.defaults?.targetAgents || [],
-      installMode: config.defaults?.installMode || 'symlink',
+      registry: storedDefaults.registry ?? DEFAULT_VALUES.registry,
+      installDir: storedDefaults.installDir ?? DEFAULT_VALUES.installDir,
+      targetAgents: storedDefaults.targetAgents ?? DEFAULT_VALUES.targetAgents,
+      installMode: storedDefaults.installMode ?? DEFAULT_VALUES.installMode,
     };
   }
 
   /**
-   * Get registry URL
+   * Update default configuration values
+   *
+   * Merges the provided updates with existing defaults and saves to file.
+   *
+   * @param updates - Partial defaults to merge
+   */
+  updateDefaults(updates: Partial<SkillsDefaults>): void {
+    this.ensureConfigLoaded();
+
+    if (this.config) {
+      this.config.defaults = {
+        ...this.config.defaults,
+        ...updates,
+      };
+      this.save();
+    }
+  }
+
+  // ==========================================================================
+  // Registry Management
+  // ==========================================================================
+
+  /**
+   * Get registry URL by name
+   *
+   * Resolution order:
+   * 1. Custom registries defined in skills.json
+   * 2. Well-known registries (github, gitlab)
+   * 3. Assumes it's a custom domain (https://{registryName})
    */
   getRegistryUrl(registryName: string): string {
-    const config = this.config || (this.exists() ? this.load() : DEFAULT_SKILLS_JSON);
+    const config = this.getConfigOrDefault();
 
-    // First check custom registries
+    // Check custom registries
     if (config.registries?.[registryName]) {
       return config.registries[registryName];
     }
 
-    // Then check default registries
+    // Check well-known registries
     if (DEFAULT_REGISTRIES[registryName]) {
       return DEFAULT_REGISTRIES[registryName];
     }
@@ -159,34 +252,30 @@ export class ConfigLoader {
     return `https://${registryName}`;
   }
 
-  /**
-   * Get installation directory
-   */
-  getInstallDir(): string {
-    const defaults = this.getDefaults();
-    return path.join(this.projectRoot, defaults.installDir);
-  }
+  // ==========================================================================
+  // Skills Management
+  // ==========================================================================
 
   /**
    * Add skill to configuration
    */
   addSkill(name: string, ref: string): void {
-    if (!this.config) {
-      this.load();
-    }
+    this.ensureConfigLoaded();
+
     if (this.config) {
       this.config.skills[name] = ref;
+      this.save();
     }
-    this.save();
   }
 
   /**
    * Remove skill from configuration
+   *
+   * @returns true if skill was removed, false if it didn't exist
    */
   removeSkill(name: string): boolean {
-    if (!this.config) {
-      this.load();
-    }
+    this.ensureConfigLoaded();
+
     if (this.config?.skills[name]) {
       delete this.config.skills[name];
       this.save();
@@ -196,7 +285,7 @@ export class ConfigLoader {
   }
 
   /**
-   * Get all skills
+   * Get all skills as a shallow copy
    */
   getSkills(): Record<string, string> {
     if (!this.config) {
@@ -209,7 +298,7 @@ export class ConfigLoader {
   }
 
   /**
-   * Check if skill exists
+   * Check if skill exists in configuration
    */
   hasSkill(name: string): boolean {
     const skills = this.getSkills();
@@ -217,11 +306,37 @@ export class ConfigLoader {
   }
 
   /**
-   * Get skill reference
+   * Get skill reference by name
    */
   getSkillRef(name: string): string | undefined {
     const skills = this.getSkills();
     return skills[name];
+  }
+
+  // ==========================================================================
+  // Private Helpers
+  // ==========================================================================
+
+  /**
+   * Get loaded config or default (does not throw)
+   */
+  private getConfigOrDefault(): SkillsJson {
+    if (this.config) {
+      return this.config;
+    }
+    if (this.exists()) {
+      return this.load();
+    }
+    return DEFAULT_SKILLS_JSON;
+  }
+
+  /**
+   * Ensure config is loaded into memory
+   */
+  private ensureConfigLoaded(): void {
+    if (!this.config) {
+      this.load();
+    }
   }
 }
 
