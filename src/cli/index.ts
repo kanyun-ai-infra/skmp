@@ -7,16 +7,24 @@ import { Command } from 'commander';
 import { logger } from '../utils/logger.js';
 import { checkForUpdate, formatUpdateMessage } from '../utils/update-notifier.js';
 import {
+  completionCommand,
   infoCommand,
   initCommand,
   installCommand,
   linkCommand,
   listCommand,
+  maybeHandleCompletion,
   outdatedCommand,
   uninstallCommand,
   unlinkCommand,
   updateCommand,
 } from './commands/index.js';
+
+// Handle tab completion early (before commander parsing)
+// This is needed because tabtab expects to intercept the process early
+if (maybeHandleCompletion()) {
+  process.exit(0);
+}
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const packageJson = JSON.parse(readFileSync(join(__dirname, '../../package.json'), 'utf-8'));
@@ -38,6 +46,7 @@ program.addCommand(outdatedCommand);
 program.addCommand(uninstallCommand);
 program.addCommand(linkCommand);
 program.addCommand(unlinkCommand);
+program.addCommand(completionCommand);
 
 // Start update check in background (non-blocking)
 const updateCheckPromise = checkForUpdate(packageJson.name, packageJson.version);

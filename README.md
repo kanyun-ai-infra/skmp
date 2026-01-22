@@ -153,8 +153,34 @@ npx reskill@latest list
 | `npx reskill@latest uninstall <skill>` | Remove a skill |
 | `npx reskill@latest link <path>` | Link local skill for development |
 | `npx reskill@latest unlink <skill>` | Unlink a local skill |
+| `npx reskill@latest completion install` | Install shell tab completion |
 
 Run `npx reskill@latest <command> --help` for detailed options.
+
+### Shell Completion
+
+reskill supports tab completion for bash, zsh, and fish shells.
+
+```bash
+# Install completion (interactive, one-time setup)
+reskill completion install
+
+# Then restart your shell or run:
+source ~/.zshrc   # for zsh
+source ~/.bashrc  # for bash
+```
+
+After installation, you can use tab completion:
+
+```bash
+reskill <Tab>              # Show all commands
+reskill info <Tab>         # Complete installed skill names
+reskill uninstall <Tab>    # Complete installed skill names
+reskill install -<Tab>     # Complete options (-f, -g, -a, etc.)
+reskill install -a <Tab>   # Complete agent names
+```
+
+To remove completion: `reskill completion uninstall`
 
 ## Private GitLab Support
 

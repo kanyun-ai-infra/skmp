@@ -1,3 +1,4 @@
+export { completionCommand, maybeHandleCompletion } from './completion.js';
 export { infoCommand } from './info.js';
 export { initCommand } from './init.js';
 export { installCommand } from './install.js';

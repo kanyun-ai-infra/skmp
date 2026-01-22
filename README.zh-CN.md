@@ -115,13 +115,13 @@ npx reskill@latest install user/skill@v1.0.0
 
 ### 版本规范
 
-| 格式 | 示例 | 说明 |
-|------|------|------|
-| 精确版本 | `@v1.0.0` | 锁定到指定 tag |
-| 最新版本 | `@latest` | 获取最新 tag |
-| 范围版本 | `@^2.0.0` | semver 兼容（>=2.0.0 <3.0.0） |
-| 分支 | `@branch:develop` | 指定分支 |
-| Commit | `@commit:abc1234` | 指定 commit hash |
+| 格式     | 示例              | 说明                          |
+| -------- | ----------------- | ----------------------------- |
+| 精确版本 | `@v1.0.0`         | 锁定到指定 tag                |
+| 最新版本 | `@latest`         | 获取最新 tag                  |
+| 范围版本 | `@^2.0.0`         | semver 兼容（>=2.0.0 <3.0.0） |
+| 分支     | `@branch:develop` | 指定分支                      |
+| Commit   | `@commit:abc1234` | 指定 commit hash              |
 
 ## 命令
 
@@ -143,19 +143,45 @@ npx reskill@latest list
 
 ### 命令参考
 
-| 命令 | 说明 |
-|------|------|
-| `npx reskill@latest init` | 在当前目录初始化 `skills.json` |
-| `npx reskill@latest install [skill]` | 安装 `skills.json` 中的所有 skills 或指定 skill |
-| `npx reskill@latest list` | 列出已安装的 skills |
-| `npx reskill@latest info <skill>` | 查看 skill 详情 |
-| `npx reskill@latest update [skill]` | 更新所有或指定 skill |
-| `npx reskill@latest outdated` | 检查过期的 skills |
-| `npx reskill@latest uninstall <skill>` | 卸载 skill |
-| `npx reskill@latest link <path>` | 链接本地 skill（开发用） |
-| `npx reskill@latest unlink <skill>` | 取消链接本地 skill |
+| 命令                                    | 说明                                            |
+| --------------------------------------- | ----------------------------------------------- |
+| `npx reskill@latest init`               | 在当前目录初始化 `skills.json`                  |
+| `npx reskill@latest install [skill]`    | 安装 `skills.json` 中的所有 skills 或指定 skill |
+| `npx reskill@latest list`               | 列出已安装的 skills                             |
+| `npx reskill@latest info <skill>`       | 查看 skill 详情                                 |
+| `npx reskill@latest update [skill]`     | 更新所有或指定 skill                            |
+| `npx reskill@latest outdated`           | 检查过期的 skills                               |
+| `npx reskill@latest uninstall <skill>`  | 卸载 skill                                      |
+| `npx reskill@latest link <path>`        | 链接本地 skill（开发用）                        |
+| `npx reskill@latest unlink <skill>`     | 取消链接本地 skill                              |
+| `npx reskill@latest completion install` | 安装 Shell Tab 补全                             |
 
 运行 `npx reskill@latest <command> --help` 查看详细选项。
+
+### Shell 补全
+
+reskill 支持 bash、zsh 和 fish 的 Tab 补全。
+
+```bash
+# 安装补全（交互式，一次性设置）
+reskill completion install
+
+# 然后重启 shell 或执行：
+source ~/.zshrc   # zsh
+source ~/.bashrc  # bash
+```
+
+安装后即可使用 Tab 补全：
+
+```bash
+reskill <Tab>              # 显示所有命令
+reskill info <Tab>         # 补全已安装的 skill 名称
+reskill uninstall <Tab>    # 补全已安装的 skill 名称
+reskill install -<Tab>     # 补全选项 (-f, -g, -a 等)
+reskill install -a <Tab>   # 补全 agent 名称
+```
+
+卸载补全：`reskill completion uninstall`
 
 ## 私有 GitLab 支持
 
@@ -254,14 +280,14 @@ npx reskill@latest install git@git.mycompany.io:team/skill.git@v1.0.0
 
 reskill 支持所有主流 AI 编程 Agent。Skills 默认安装到 `.skills/` 目录，可与任何 Agent 集成。
 
-| Agent | 集成路径 |
-|-------|----------|
-| Cursor | `.cursor/rules/` 或 `.cursor/skills/` |
-| Claude Code | `.claude/skills/` |
-| Codex | `.codex/skills/` |
-| OpenCode | `.opencode/skills/` |
-| Windsurf | `.windsurf/skills/` |
-| GitHub Copilot | `.github/skills/` |
+| Agent          | 集成路径                              |
+| -------------- | ------------------------------------- |
+| Cursor         | `.cursor/rules/` 或 `.cursor/skills/` |
+| Claude Code    | `.claude/skills/`                     |
+| Codex          | `.codex/skills/`                      |
+| OpenCode       | `.opencode/skills/`                   |
+| Windsurf       | `.windsurf/skills/`                   |
+| GitHub Copilot | `.github/skills/`                     |
 
 ## Skill 仓库结构
 
@@ -308,10 +334,10 @@ my-project/
 
 ## 环境变量
 
-| 变量 | 说明 | 默认值 |
-|------|------|--------|
+| 变量                | 说明         | 默认值             |
+| ------------------- | ------------ | ------------------ |
 | `RESKILL_CACHE_DIR` | 全局缓存目录 | `~/.reskill-cache` |
-| `DEBUG` | 启用调试日志 | - |
+| `DEBUG`             | 启用调试日志 | -                  |
 
 ## 开发
 
