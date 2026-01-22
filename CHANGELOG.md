@@ -1,5 +1,81 @@
 # reskill
 
+## 0.16.0
+
+### Minor Changes
+
+- f2b9d99: Add shell tab completion support for bash, zsh, and fish.
+
+  New features:
+
+  - `reskill completion install` - Install shell completion interactively
+  - `reskill completion uninstall` - Remove shell completion
+  - Subcommand completion: `reskill <Tab>` shows all available commands
+  - Skill name completion for `info`, `uninstall`, `update` commands
+  - Linked skill completion for `unlink` command
+  - Option completion for `install -<Tab>` (shows -f, -g, -a, --force, etc.)
+  - Agent name completion for `install -a <Tab>`
+
+  ***
+
+  新增 Shell Tab 补全功能，支持 bash、zsh 和 fish。
+
+  新功能：
+
+  - `reskill completion install` - 交互式安装 Shell 补全
+  - `reskill completion uninstall` - 卸载 Shell 补全
+  - 子命令补全：`reskill <Tab>` 显示所有可用命令
+  - skill 名称补全：`info`、`uninstall`、`update` 命令支持补全已安装的 skill
+  - 已链接 skill 补全：`unlink` 命令只补全已链接的 skill
+  - 选项补全：`install -<Tab>` 显示 -f、-g、-a、--force 等选项
+  - agent 名称补全：`install -a <Tab>` 补全 agent 名称
+
+### Patch Changes
+
+- 60530a6: Fix uninstall command to properly clean up all agent directories
+
+  **Bug Fix:**
+
+  - The `uninstall` command now correctly removes all agent-specific directories when uninstalling a skill
+  - Ensures complete cleanup of skill files and prevents leftover directories
+
+  ***
+
+  修复 uninstall 命令，正确清理所有 agent 目录
+
+  **问题修复：**
+
+  - `uninstall` 命令现在会正确移除所有与 agent 相关的目录
+  - 确保完全清理 skill 文件，防止遗留目录
+
+- a516026: Check remote commit before reinstalling and unify file exclusion rules
+
+  **Bug Fixes:**
+
+  - Add `checkNeedsUpdate()` to compare local lock commit with remote commit
+  - Add `getRemoteCommit()` to fetch remote commit via `git ls-remote`
+  - Skip update when local and remote commits match, avoiding unnecessary reinstallation
+  - Unify file exclusion rules between Installer and CacheManager:
+    - Export `DEFAULT_EXCLUDE_FILES` (README.md, metadata.json, .reskill-commit)
+    - Export `EXCLUDE_PREFIX` ('\_') for internal files
+  - Update `copyDir()` to support `excludePrefix` option
+  - Add comprehensive tests for update logic and file exclusion
+
+  ***
+
+  在重新安装前检查远程提交并统一文件排除规则
+
+  **问题修复：**
+
+  - 添加 `checkNeedsUpdate()` 方法比较本地锁定提交与远程提交
+  - 添加 `getRemoteCommit()` 方法通过 `git ls-remote` 获取远程提交
+  - 当本地和远程提交匹配时跳过更新,避免不必要的重新安装
+  - 统一 Installer 和 CacheManager 之间的文件排除规则:
+    - 导出 `DEFAULT_EXCLUDE_FILES` (README.md, metadata.json, .reskill-commit)
+    - 导出 `EXCLUDE_PREFIX` ('\_') 用于内部文件
+  - 更新 `copyDir()` 支持 `excludePrefix` 选项
+  - 添加更新逻辑和文件排除的完整测试
+
 ## 0.15.0
 
 ### Minor Changes
