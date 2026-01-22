@@ -19,13 +19,13 @@
 
 ```bash
 # 1. 初始化项目
-reskill init
+npx reskill init
 
 # 2. 安装 skill
-reskill install github:anthropics/skills/frontend-design@latest
+npx reskill install github:anthropics/skills/frontend-design@latest
 
 # 3. 列出已安装的 skills
-reskill list
+npx reskill list
 ```
 
 ## 什么是 reskill？
@@ -90,19 +90,19 @@ npx reskill <command>
 
 ```bash
 # GitHub 简写
-reskill install github:user/skill@v1.0.0
+npx reskill install github:user/skill@v1.0.0
 
 # 完整 URL
-reskill install https://github.com/user/skill
+npx reskill install https://github.com/user/skill
 
 # GitLab
-reskill install gitlab:group/skill@latest
+npx reskill install gitlab:group/skill@latest
 
 # 私有 Registry
-reskill install gitlab.company.com:team/skill@v1.0.0
+npx reskill install gitlab.company.com:team/skill@v1.0.0
 
 # 默认 Registry（来自 skills.json）
-reskill install user/skill@v1.0.0
+npx reskill install user/skill@v1.0.0
 ```
 
 ### 版本规范
@@ -117,19 +117,105 @@ reskill install user/skill@v1.0.0
 
 ## 命令
 
+无需全局安装，直接使用 `npx reskill`：
+
+```bash
+# 初始化项目
+npx reskill init
+
+# 从 GitHub 安装 skill
+npx reskill install github:anthropics/skills/frontend-design@latest
+
+# 从私有 GitLab 安装
+npx reskill install gitlab.company.com:team/internal-skill@v1.0.0
+
+# 列出已安装的 skills
+npx reskill list
+```
+
+### 命令参考
+
 | 命令 | 说明 |
 |------|------|
-| `reskill init` | 在当前目录初始化 `skills.json` |
-| `reskill install [skill]` | 安装 `skills.json` 中的所有 skills 或指定 skill |
-| `reskill list` | 列出已安装的 skills |
-| `reskill info <skill>` | 查看 skill 详情 |
-| `reskill update [skill]` | 更新所有或指定 skill |
-| `reskill outdated` | 检查过期的 skills |
-| `reskill uninstall <skill>` | 卸载 skill |
-| `reskill link <path>` | 链接本地 skill（开发用） |
-| `reskill unlink <skill>` | 取消链接本地 skill |
+| `npx reskill init` | 在当前目录初始化 `skills.json` |
+| `npx reskill install [skill]` | 安装 `skills.json` 中的所有 skills 或指定 skill |
+| `npx reskill list` | 列出已安装的 skills |
+| `npx reskill info <skill>` | 查看 skill 详情 |
+| `npx reskill update [skill]` | 更新所有或指定 skill |
+| `npx reskill outdated` | 检查过期的 skills |
+| `npx reskill uninstall <skill>` | 卸载 skill |
+| `npx reskill link <path>` | 链接本地 skill（开发用） |
+| `npx reskill unlink <skill>` | 取消链接本地 skill |
 
-运行 `reskill <command> --help` 查看详细选项。
+运行 `npx reskill <command> --help` 查看详细选项。
+
+## 私有 GitLab 支持
+
+reskill 完整支持私有 GitLab 仓库，包括自建实例。认证通过系统的 git 配置透明处理。
+
+### 认证方式
+
+**SSH（推荐）**
+
+reskill 自动使用你已有的 SSH 配置：
+
+```bash
+# 自动使用 ~/.ssh/id_rsa 或 ~/.ssh/id_ed25519
+npx reskill install gitlab.company.com:team/private-skill@v1.0.0
+
+# 或使用显式的 SSH URL
+npx reskill install git@gitlab.company.com:team/private-skill.git@v1.0.0
+```
+
+确保你的 SSH key 已添加到 GitLab，并且 ssh-agent 正在运行。
+
+**HTTPS + Git Credential**
+
+适用于 CI/CD 或无 SSH 的环境，配置 git credential helper：
+
+```bash
+# 存储凭证（首次会提示输入，之后自动记住）
+git config --global credential.helper store
+
+# 或在 CI 中使用环境变量
+git config --global credential.helper '!f() { echo "username=oauth2"; echo "password=${GITLAB_TOKEN}"; }; f'
+```
+
+GitLab CI/CD 可使用内置的 `CI_JOB_TOKEN`：
+
+```yaml
+before_script:
+  - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.company.com/".insteadOf "https://gitlab.company.com/"
+```
+
+### Registry 配置
+
+在 `skills.json` 中配置私有 registry：
+
+```json
+{
+  "registries": {
+    "internal": "https://gitlab.company.com",
+    "private": "git@gitlab.internal.io"
+  },
+  "skills": {
+    "company-standards": "internal:team/standards@latest",
+    "private-utils": "private:utils/helpers@v1.0.0"
+  }
+}
+```
+
+### 自建 GitLab
+
+对于使用自定义域名的自建 GitLab 实例：
+
+```bash
+# 直接安装
+npx reskill install git.mycompany.io:team/skill@v1.0.0
+
+# 使用显式的 SSH URL
+npx reskill install git@git.mycompany.io:team/skill.git@v1.0.0
+```
 
 ## 配置
 
@@ -216,7 +302,7 @@ my-project/
 
 | 变量 | 说明 | 默认值 |
 |------|------|--------|
-| `SKPM_CACHE_DIR` | 全局缓存目录 | `~/.reskill-cache` |
+| `RESKILL_CACHE_DIR` | 全局缓存目录 | `~/.reskill-cache` |
 | `DEBUG` | 启用调试日志 | - |
 
 ## 开发

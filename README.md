@@ -19,13 +19,13 @@ English | [简体中文](./README.zh-CN.md)
 
 ```bash
 # 1. Initialize project
-reskill init
+npx reskill init
 
 # 2. Install a skill
-reskill install github:anthropics/skills/frontend-design@latest
+npx reskill install github:anthropics/skills/frontend-design@latest
 
 # 3. List installed skills
-reskill list
+npx reskill list
 ```
 
 ## What is reskill?
@@ -89,19 +89,19 @@ npx reskill <command>
 
 ```bash
 # GitHub shorthand
-reskill install github:user/skill@v1.0.0
+npx reskill install github:user/skill@v1.0.0
 
 # Full URL
-reskill install https://github.com/user/skill
+npx reskill install https://github.com/user/skill
 
 # GitLab
-reskill install gitlab:group/skill@latest
+npx reskill install gitlab:group/skill@latest
 
 # Private registry
-reskill install gitlab.company.com:team/skill@v1.0.0
+npx reskill install gitlab.company.com:team/skill@v1.0.0
 
 # Default registry (from skills.json)
-reskill install user/skill@v1.0.0
+npx reskill install user/skill@v1.0.0
 ```
 
 ### Version Specification
@@ -116,19 +116,105 @@ reskill install user/skill@v1.0.0
 
 ## Commands
 
+You can use `npx reskill` directly without global installation:
+
+```bash
+# Initialize project
+npx reskill init
+
+# Install a skill from GitHub
+npx reskill install github:anthropics/skills/frontend-design@latest
+
+# Install from private GitLab
+npx reskill install gitlab.company.com:team/internal-skill@v1.0.0
+
+# List installed skills
+npx reskill list
+```
+
+### Command Reference
+
 | Command | Description |
 |---------|-------------|
-| `reskill init` | Initialize `skills.json` in current directory |
-| `reskill install [skill]` | Install skills from `skills.json` or a specific skill |
-| `reskill list` | List installed skills |
-| `reskill info <skill>` | Show skill details |
-| `reskill update [skill]` | Update all or specific skill |
-| `reskill outdated` | Check for outdated skills |
-| `reskill uninstall <skill>` | Remove a skill |
-| `reskill link <path>` | Link local skill for development |
-| `reskill unlink <skill>` | Unlink a local skill |
+| `npx reskill init` | Initialize `skills.json` in current directory |
+| `npx reskill install [skill]` | Install skills from `skills.json` or a specific skill |
+| `npx reskill list` | List installed skills |
+| `npx reskill info <skill>` | Show skill details |
+| `npx reskill update [skill]` | Update all or specific skill |
+| `npx reskill outdated` | Check for outdated skills |
+| `npx reskill uninstall <skill>` | Remove a skill |
+| `npx reskill link <path>` | Link local skill for development |
+| `npx reskill unlink <skill>` | Unlink a local skill |
 
-Run `reskill <command> --help` for detailed options.
+Run `npx reskill <command> --help` for detailed options.
+
+## Private GitLab Support
+
+reskill fully supports private GitLab repositories, including self-hosted instances. Authentication is handled transparently through your system's git configuration.
+
+### Authentication Methods
+
+**SSH (Recommended)**
+
+reskill uses your existing SSH configuration automatically:
+
+```bash
+# Uses your ~/.ssh/id_rsa or ~/.ssh/id_ed25519 automatically
+npx reskill install gitlab.company.com:team/private-skill@v1.0.0
+
+# Or with explicit SSH URL
+npx reskill install git@gitlab.company.com:team/private-skill.git@v1.0.0
+```
+
+Ensure your SSH key is added to GitLab and ssh-agent is running.
+
+**HTTPS with Git Credential**
+
+For CI/CD or environments without SSH, configure git credential helper:
+
+```bash
+# Store credentials (will prompt once, then remember)
+git config --global credential.helper store
+
+# Or use environment variable in CI
+git config --global credential.helper '!f() { echo "username=oauth2"; echo "password=${GITLAB_TOKEN}"; }; f'
+```
+
+For GitLab CI/CD, use the built-in `CI_JOB_TOKEN`:
+
+```yaml
+before_script:
+  - git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.company.com/".insteadOf "https://gitlab.company.com/"
+```
+
+### Registry Configuration
+
+Configure private registries in `skills.json`:
+
+```json
+{
+  "registries": {
+    "internal": "https://gitlab.company.com",
+    "private": "git@gitlab.internal.io"
+  },
+  "skills": {
+    "company-standards": "internal:team/standards@latest",
+    "private-utils": "private:utils/helpers@v1.0.0"
+  }
+}
+```
+
+### Self-Hosted GitLab
+
+For self-hosted GitLab instances with custom domains:
+
+```bash
+# Direct installation
+npx reskill install git.mycompany.io:team/skill@v1.0.0
+
+# With explicit SSH URL
+npx reskill install git@git.mycompany.io:team/skill.git@v1.0.0
+```
 
 ## Configuration
 
@@ -215,7 +301,7 @@ my-project/
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `SKPM_CACHE_DIR` | Global cache directory | `~/.reskill-cache` |
+| `RESKILL_CACHE_DIR` | Global cache directory | `~/.reskill-cache` |
 | `DEBUG` | Enable debug logging | - |
 
 ## Development
