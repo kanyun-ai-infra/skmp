@@ -1,6 +1,6 @@
 <div align="center">
 
-# reskill
+<img src="https://raw.githubusercontent.com/kanyun-ai-infra/reskill/main/logo.png" alt="reskill" height="48" />
 
 **基于 Git 的 AI Agent Skills 包管理器**
 
