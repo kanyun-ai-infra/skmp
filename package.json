@@ -55,11 +55,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/xanyun-inc/reskill.git"
+    "url": "https://github.com/kanyun-ai-infra/reskill.git"
   },
-  "homepage": "https://github.com/xanyun-inc/reskill#readme",
+  "homepage": "https://github.com/kanyun-ai-infra/reskill#readme",
   "bugs": {
-    "url": "https://github.com/xanyun-inc/reskill/issues"
+    "url": "https://github.com/kanyun-ai-infra/reskill/issues"
   },
   "dependencies": {
     "@clack/prompts": "^0.9.1",
