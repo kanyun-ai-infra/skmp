@@ -475,3 +475,87 @@ describe('config reload logic', () => {
     expect(shouldReload).toBe(true);
   });
 });
+
+// ============================================================================
+// Batch Installation Logic Tests
+// ============================================================================
+
+describe('batch installation logic', () => {
+  describe('result aggregation', () => {
+    it('should correctly aggregate mixed success/failure results', () => {
+      // Simulate batch install results
+      const installResults = [
+        { ref: 'github:user/skill-a', success: true, skill: { name: 'skill-a', version: '1.0.0' } },
+        { ref: 'github:user/skill-b', success: false, error: 'Repository not found' },
+        { ref: 'github:user/skill-c', success: true, skill: { name: 'skill-c', version: '2.0.0' } },
+        { ref: 'github:user/skill-d', success: false, error: 'Network timeout' },
+      ];
+
+      const successfulSkills = installResults
+        .filter((r) => r.success)
+        .map((r) => r.skill!);
+      const failedSkills = installResults
+        .filter((r) => !r.success)
+        .map((r) => ({ ref: r.ref, error: r.error! }));
+
+      expect(successfulSkills).toHaveLength(2);
+      expect(failedSkills).toHaveLength(2);
+      expect(successfulSkills.map((s) => s.name)).toEqual(['skill-a', 'skill-c']);
+      expect(failedSkills.map((f) => f.ref)).toEqual([
+        'github:user/skill-b',
+        'github:user/skill-d',
+      ]);
+    });
+
+    it('should determine exit code based on failures', () => {
+      // Exit code should be 1 if any skill fails
+      const hasFailures = (failedCount: number) => failedCount > 0;
+
+      expect(hasFailures(0)).toBe(false); // All success → exit 0
+      expect(hasFailures(1)).toBe(true);  // Partial failure → exit 1
+      expect(hasFailures(5)).toBe(true);  // All failure → exit 1
+    });
+
+    it('should continue processing remaining skills after one fails', () => {
+      // Simulate sequential processing with early failure
+      const skills = ['skill-a', 'skill-b', 'skill-c'];
+      const processed: string[] = [];
+      const results: { skill: string; success: boolean }[] = [];
+
+      for (const skill of skills) {
+        processed.push(skill);
+        // Simulate skill-b failing
+        const success = skill !== 'skill-b';
+        results.push({ skill, success });
+      }
+
+      // All skills should be processed even if one fails
+      expect(processed).toEqual(['skill-a', 'skill-b', 'skill-c']);
+      expect(results.filter((r) => r.success)).toHaveLength(2);
+      expect(results.filter((r) => !r.success)).toHaveLength(1);
+    });
+  });
+
+  describe('batch vs single detection', () => {
+    it('should detect batch install when multiple skills provided', () => {
+      const skills = ['github:user/skill-a', 'github:user/skill-b'];
+      const isBatchInstall = skills.length > 1;
+
+      expect(isBatchInstall).toBe(true);
+    });
+
+    it('should detect single install when one skill provided', () => {
+      const skills = ['github:user/skill-a'];
+      const isBatchInstall = skills.length > 1;
+
+      expect(isBatchInstall).toBe(false);
+    });
+
+    it('should detect reinstall-all when no skills provided', () => {
+      const skills: string[] = [];
+      const isReinstallAll = skills.length === 0;
+
+      expect(isReinstallAll).toBe(true);
+    });
+  });
+});

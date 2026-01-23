@@ -466,7 +466,6 @@ async function installMultipleSkills(
   spinner: ReturnType<typeof p.spinner>,
 ): Promise<void> {
   const { skills, options, configLoader, skipConfirm } = ctx;
-  const cwd = process.cwd();
 
   // Show installation summary
   const summaryLines = [
@@ -487,14 +486,15 @@ async function installMultipleSkills(
     }
   }
 
-  // Execute installation for each skill
+  // Execute installation for all skills in parallel
   const skillManager = new SkillManager(undefined, { global: installGlobally });
   const successfulSkills: { name: string; version: string }[] = [];
   const failedSkills: { ref: string; error: string }[] = [];
 
-  for (const skillRef of skills) {
-    spinner.start(`Installing ${skillRef}...`);
+  spinner.start(`Installing ${skills.length} skills in parallel...`);
 
+  // Create install promises for all skills
+  const installPromises = skills.map(async (skillRef) => {
     try {
       const { skill: installed, results } = await skillManager.installToAgents(skillRef, targetAgents, {
         force: options.force,
@@ -504,22 +504,34 @@ async function installMultipleSkills(
 
       const successful = Array.from(results.values()).filter((r) => r.success);
       if (successful.length > 0) {
-        successfulSkills.push(installed);
-        spinner.stop(`${chalk.green('✓')} ${installed.name}@${installed.version}`);
-      } else {
-        const firstError = Array.from(results.values()).find((r) => !r.success)?.error;
-        failedSkills.push({ ref: skillRef, error: firstError || 'Unknown error' });
-        spinner.stop(`${chalk.red('✗')} ${skillRef}`);
+        return { success: true as const, skillRef, skill: installed };
       }
+      const firstError = Array.from(results.values()).find((r) => !r.success)?.error;
+      return { success: false as const, skillRef, error: firstError || 'Unknown error' };
     } catch (error) {
-      failedSkills.push({ ref: skillRef, error: (error as Error).message });
-      spinner.stop(`${chalk.red('✗')} ${skillRef}`);
+      return { success: false as const, skillRef, error: (error as Error).message };
+    }
+  });
+
+  // Wait for all installations to complete
+  const results = await Promise.all(installPromises);
+
+  spinner.stop(`Processed ${skills.length} skills`);
+
+  // Aggregate results
+  for (const result of results) {
+    if (result.success) {
+      successfulSkills.push(result.skill);
+      p.log.success(`${chalk.green('✓')} ${result.skill.name}@${result.skill.version}`);
+    } else {
+      failedSkills.push({ ref: result.skillRef, error: result.error });
+      p.log.error(`${chalk.red('✗')} ${result.skillRef}`);
     }
   }
 
   // Display batch results
   console.log();
-  displayBatchInstallResults(successfulSkills, failedSkills, targetAgents.length, cwd);
+  displayBatchInstallResults(successfulSkills, failedSkills, targetAgents.length);
 
   // Save installation defaults (only for project installs with success)
   if (!installGlobally && successfulSkills.length > 0 && configLoader.exists()) {
@@ -582,7 +594,6 @@ function displayBatchInstallResults(
   successfulSkills: { name: string; version: string }[],
   failedSkills: { ref: string; error: string }[],
   agentCount: number,
-  _cwd: string,
 ): void {
   if (successfulSkills.length > 0) {
     const resultLines = successfulSkills.map(
