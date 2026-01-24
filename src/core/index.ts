@@ -16,6 +16,8 @@ export { ConfigLoader, DEFAULT_REGISTRIES } from './config-loader.js';
 export type WellKnownRegistry = keyof typeof import('./config-loader.js').DEFAULT_REGISTRIES;
 export type { RegistryResolver } from './git-resolver.js';
 export { GitResolver } from './git-resolver.js';
+export type { ParsedHttpUrl } from './http-resolver.js';
+export { HttpResolver } from './http-resolver.js';
 export type { InstallerOptions, InstallMode, InstallResult } from './installer.js';
 export { Installer } from './installer.js';
 export { LockManager } from './lock-manager.js';

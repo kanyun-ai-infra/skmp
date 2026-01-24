@@ -151,7 +151,42 @@ https://gitlab.com/user/repo.git
 
 # GitHub/GitLab web URL (with branch and subpath)
 https://github.com/user/repo/tree/main/skills/my-skill
+
+# HTTP/OSS URLs (archive files)
+https://example.com/skills/my-skill-v1.0.0.tar.gz
+https://bucket.oss-cn-hangzhou.aliyuncs.com/skills/skill.tar.gz
+https://my-bucket.s3.amazonaws.com/skills/skill-v1.0.0.zip
+
+# OSS/S3 protocol shortcuts
+oss://bucket-name/path/to/skill.tar.gz
+s3://bucket-name/path/to/skill.zip
 ```
+
+### HTTP/OSS URL Support
+
+Skills can be installed directly from HTTP/HTTPS URLs pointing to archive files.
+
+| Format | Example | Description |
+|--------|---------|-------------|
+| HTTPS URL | `https://example.com/skill.tar.gz` | Direct download URL |
+| Aliyun OSS | `https://bucket.oss-cn-hangzhou.aliyuncs.com/skill.tar.gz` | Aliyun OSS URL |
+| AWS S3 | `https://bucket.s3.amazonaws.com/skill.tar.gz` | AWS S3 URL |
+| OSS Protocol | `oss://bucket/path/skill.tar.gz` | Shorthand for Aliyun OSS |
+| S3 Protocol | `s3://bucket/path/skill.tar.gz` | Shorthand for AWS S3 |
+
+**Supported archive formats:**
+- `.tar.gz` / `.tgz` - Gzipped tar archives
+- `.zip` - ZIP archives
+- `.tar` - Tar archives
+
+**Version extraction:**
+- From filename: `skill-v1.0.0.tar.gz` → version `v1.0.0`
+- Explicit: `https://example.com/skill.tar.gz@v1.0.0` → version `v1.0.0`
+- From `skill.json` inside the archive
+
+**Skill name extraction:**
+- From filename: `my-skill-v1.0.0.tar.gz` → name `my-skill`
+- From archive root directory name
 
 ### Version Formats
 

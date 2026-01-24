@@ -21,6 +21,7 @@ import {
 import { CacheManager } from './cache-manager.js';
 import { ConfigLoader } from './config-loader.js';
 import { GitResolver } from './git-resolver.js';
+import { HttpResolver } from './http-resolver.js';
 import { Installer, type InstallMode, type InstallResult } from './installer.js';
 import { LockManager } from './lock-manager.js';
 
@@ -45,6 +46,7 @@ export interface SkillManagerOptions {
 export class SkillManager {
   private projectRoot: string;
   private resolver: GitResolver;
+  private httpResolver: HttpResolver;
   private cache: CacheManager;
   private config: ConfigLoader;
   private lockManager: LockManager;
@@ -60,6 +62,7 @@ export class SkillManager {
     this.resolver = new GitResolver('github', undefined, (registryName: string) =>
       this.config.getRegistryUrl(registryName),
     );
+    this.httpResolver = new HttpResolver();
   }
 
   /**
@@ -134,9 +137,27 @@ export class SkillManager {
   }
 
   /**
+   * Detect if a reference is an HTTP/OSS URL
+   */
+  private isHttpSource(ref: string): boolean {
+    return HttpResolver.isHttpUrl(ref);
+  }
+
+  /**
    * Install skill
    */
   async install(ref: string, options: InstallOptions = {}): Promise<InstalledSkill> {
+    // Detect source type and delegate to appropriate installer
+    if (this.isHttpSource(ref)) {
+      return this.installFromHttp(ref, options);
+    }
+    return this.installFromGit(ref, options);
+  }
+
+  /**
+   * Install skill from Git repository
+   */
+  private async installFromGit(ref: string, options: InstallOptions = {}): Promise<InstalledSkill> {
     const { force = false, save = true } = options;
 
     // Parse reference
@@ -221,7 +242,109 @@ export class SkillManager {
 
     const displayVersion = semanticVersion !== gitRef ? `${semanticVersion} (${gitRef})` : gitRef;
     const locationHint = this.isGlobal ? '(global)' : '';
-    logger.success(`Installed ${skillName}@${displayVersion} to ${skillPath} ${locationHint}`.trim());
+    logger.success(
+      `Installed ${skillName}@${displayVersion} to ${skillPath} ${locationHint}`.trim(),
+    );
+
+    const installed = this.getInstalledSkill(skillName);
+    if (!installed) {
+      throw new Error(`Failed to get installed skill info for ${skillName}`);
+    }
+    return installed;
+  }
+
+  /**
+   * Install skill from HTTP/OSS URL
+   */
+  private async installFromHttp(
+    ref: string,
+    options: InstallOptions = {},
+  ): Promise<InstalledSkill> {
+    const { force = false, save = true } = options;
+
+    // Parse HTTP reference
+    const resolved = await this.httpResolver.resolve(ref);
+    const { parsed, repoUrl, httpInfo } = resolved;
+    const version = resolved.ref || 'latest';
+    const skillName = httpInfo.skillName;
+
+    const skillPath = this.getSkillPath(skillName);
+
+    // Check if already installed
+    if (exists(skillPath) && !force) {
+      const locked = this.lockManager.get(skillName);
+      const lockedRef = locked?.ref || locked?.version;
+      if (locked && lockedRef === version) {
+        logger.info(`${skillName}@${version} is already installed`);
+        const installed = this.getInstalledSkill(skillName);
+        if (installed) return installed;
+      }
+
+      if (!force) {
+        logger.warn(`${skillName} is already installed. Use --force to reinstall.`);
+        const installed = this.getInstalledSkill(skillName);
+        if (installed) return installed;
+      }
+    }
+
+    logger.package(`Installing ${skillName}@${version} from ${httpInfo.host}...`);
+
+    // Check cache
+    let cacheResult = await this.cache.get(parsed, version);
+
+    if (!cacheResult) {
+      logger.debug(`Downloading ${skillName}@${version} from ${repoUrl}`);
+      cacheResult = await this.cache.cacheFromHttp(repoUrl, parsed, version);
+    } else {
+      logger.debug(`Using cached ${skillName}@${version}`);
+    }
+
+    // Copy to installation directory
+    ensureDir(this.getInstallDir());
+
+    if (exists(skillPath)) {
+      remove(skillPath);
+    }
+
+    await this.cache.copyTo(parsed, version, skillPath);
+
+    // Read semantic version from skill.json
+    let semanticVersion = version;
+    const skillJsonPath = path.join(skillPath, 'skill.json');
+    if (exists(skillJsonPath)) {
+      try {
+        const skillJson = readJson<SkillJson>(skillJsonPath);
+        if (skillJson.version) {
+          semanticVersion = skillJson.version;
+        }
+      } catch {
+        // Ignore parse errors
+      }
+    }
+
+    // Update lock file (project mode only)
+    if (!this.isGlobal) {
+      this.lockManager.lockSkill(skillName, {
+        source: `http:${httpInfo.host}/${skillName}`,
+        version: semanticVersion,
+        ref: version,
+        resolved: repoUrl,
+        commit: cacheResult.commit,
+      });
+    }
+
+    // Update skills.json (project mode only)
+    if (!this.isGlobal && save) {
+      this.config.ensureExists();
+      this.config.addSkill(skillName, ref);
+    }
+
+    const displayVersion =
+      semanticVersion !== version ? `${semanticVersion} (${version})` : version;
+    const locationHint = this.isGlobal ? '(global)' : '';
+    logger.success(
+      `Installed ${skillName}@${displayVersion} to ${skillPath} ${locationHint}`.trim(),
+    );
 
     const installed = this.getInstalledSkill(skillName);
     if (!installed) {
@@ -312,13 +435,18 @@ export class SkillManager {
         return [];
       }
 
-      // Check if update is needed by getting remote commit first
-      const resolved = await this.resolver.resolve(ref);
-      const remoteCommit = await this.cache.getRemoteCommit(resolved.repoUrl, resolved.ref);
+      // Check if update is needed (skip check for HTTP sources - always re-download)
+      if (!this.isHttpSource(ref)) {
+        const resolved = await this.resolver.resolve(ref);
+        const remoteCommit = await this.cache.getRemoteCommit(resolved.repoUrl, resolved.ref);
 
-      if (!this.checkNeedsUpdate(name, remoteCommit)) {
-        logger.info(`${name} is already up to date`);
-        return [];
+        if (!this.checkNeedsUpdate(name, remoteCommit)) {
+          logger.info(`${name} is already up to date`);
+          return [];
+        }
+      } else {
+        // For HTTP sources, log that we're re-downloading
+        logger.info(`${name} is from HTTP source, re-downloading...`);
       }
 
       const skill = await this.install(ref, { force: true, save: false });
@@ -328,13 +456,17 @@ export class SkillManager {
       const skills = this.config.getSkills();
       for (const [skillName, ref] of Object.entries(skills)) {
         try {
-          // Check if update is needed
-          const resolved = await this.resolver.resolve(ref);
-          const remoteCommit = await this.cache.getRemoteCommit(resolved.repoUrl, resolved.ref);
+          // Check if update is needed (skip check for HTTP sources)
+          if (!this.isHttpSource(ref)) {
+            const resolved = await this.resolver.resolve(ref);
+            const remoteCommit = await this.cache.getRemoteCommit(resolved.repoUrl, resolved.ref);
 
-          if (!this.checkNeedsUpdate(skillName, remoteCommit)) {
-            logger.info(`${skillName} is already up to date`);
-            continue;
+            if (!this.checkNeedsUpdate(skillName, remoteCommit)) {
+              logger.info(`${skillName} is already up to date`);
+              continue;
+            }
+          } else {
+            logger.info(`${skillName} is from HTTP source, re-downloading...`);
           }
 
           const skill = await this.install(ref, { force: true, save: false });
@@ -548,11 +680,29 @@ export class SkillManager {
   /**
    * Install skill to multiple agents
    *
-   * @param ref - Skill reference (e.g., github:user/repo@v1.0.0)
+   * @param ref - Skill reference (e.g., github:user/repo@v1.0.0 or HTTP URL)
    * @param targetAgents - Target agents list
    * @param options - Installation options
    */
   async installToAgents(
+    ref: string,
+    targetAgents: AgentType[],
+    options: InstallOptions = {},
+  ): Promise<{
+    skill: InstalledSkill;
+    results: Map<AgentType, InstallResult>;
+  }> {
+    // Detect source type and delegate to appropriate installer
+    if (this.isHttpSource(ref)) {
+      return this.installToAgentsFromHttp(ref, targetAgents, options);
+    }
+    return this.installToAgentsFromGit(ref, targetAgents, options);
+  }
+
+  /**
+   * Install skill from Git to multiple agents
+   */
+  private async installToAgentsFromGit(
     ref: string,
     targetAgents: AgentType[],
     options: InstallOptions = {},
@@ -648,6 +798,111 @@ export class SkillManager {
       path: sourcePath,
       version: semanticVersion,
       source: `${parsed.registry}:${parsed.owner}/${parsed.repo}${parsed.subPath ? `/${parsed.subPath}` : ''}`,
+    };
+
+    return { skill, results };
+  }
+
+  /**
+   * Install skill from HTTP/OSS to multiple agents
+   */
+  private async installToAgentsFromHttp(
+    ref: string,
+    targetAgents: AgentType[],
+    options: InstallOptions = {},
+  ): Promise<{
+    skill: InstalledSkill;
+    results: Map<AgentType, InstallResult>;
+  }> {
+    const { save = true, mode = 'symlink' } = options;
+
+    // Parse HTTP reference
+    const resolved = await this.httpResolver.resolve(ref);
+    const { parsed, repoUrl, httpInfo } = resolved;
+    const version = resolved.ref || 'latest';
+    const skillName = httpInfo.skillName;
+
+    logger.package(
+      `Installing ${skillName}@${version} from ${httpInfo.host} to ${targetAgents.length} agent(s)...`,
+    );
+
+    // Check cache
+    let cacheResult = await this.cache.get(parsed, version);
+
+    if (!cacheResult) {
+      logger.debug(`Downloading ${skillName}@${version} from ${repoUrl}`);
+      cacheResult = await this.cache.cacheFromHttp(repoUrl, parsed, version);
+    } else {
+      logger.debug(`Using cached ${skillName}@${version}`);
+    }
+
+    // Get cache path as source
+    const sourcePath = this.cache.getCachePath(parsed, version);
+
+    // Read semantic version from skill.json
+    let semanticVersion = version;
+    const skillJsonPath = path.join(sourcePath, 'skill.json');
+    if (exists(skillJsonPath)) {
+      try {
+        const skillJson = readJson<SkillJson>(skillJsonPath);
+        if (skillJson.version) {
+          semanticVersion = skillJson.version;
+        }
+      } catch {
+        // Ignore parse errors
+      }
+    }
+
+    // Create Installer with custom installDir from config
+    const defaults = this.config.getDefaults();
+    const installer = new Installer({
+      cwd: this.projectRoot,
+      global: this.isGlobal,
+      installDir: defaults.installDir,
+    });
+
+    // Install to all target agents
+    const results = await installer.installToAgents(sourcePath, skillName, targetAgents, {
+      mode: mode as InstallMode,
+    });
+
+    // Update lock file (project mode only)
+    if (!this.isGlobal) {
+      this.lockManager.lockSkill(skillName, {
+        source: `http:${httpInfo.host}/${skillName}`,
+        version: semanticVersion,
+        ref: version,
+        resolved: repoUrl,
+        commit: cacheResult.commit,
+      });
+    }
+
+    // Update skills.json (project mode only)
+    if (!this.isGlobal && save) {
+      this.config.ensureExists();
+      this.config.addSkill(skillName, ref);
+    }
+
+    // Count results
+    const successCount = Array.from(results.values()).filter((r) => r.success).length;
+    const failCount = results.size - successCount;
+
+    const displayVersion =
+      semanticVersion !== version ? `${semanticVersion} (${version})` : version;
+    if (failCount === 0) {
+      logger.success(`Installed ${skillName}@${displayVersion} to ${successCount} agent(s)`);
+    } else {
+      logger.warn(
+        `Installed ${skillName}@${displayVersion} to ${successCount} agent(s), ${failCount} failed`,
+      );
+    }
+
+    // Build the InstalledSkill to return
+    const skill: InstalledSkill = {
+      name: skillName,
+      path: sourcePath,
+      version: semanticVersion,
+      source: `http:${httpInfo.host}/${skillName}`,
     };
 
     return { skill, results };

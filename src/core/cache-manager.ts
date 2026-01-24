@@ -1,3 +1,4 @@
+import * as fs from 'node:fs';
 import * as path from 'node:path';
 import type { ParsedSkillRef } from '../types/index.js';
 import {
@@ -10,6 +11,7 @@ import {
   remove,
 } from '../utils/fs.js';
 import { clone, getCurrentCommit } from '../utils/git.js';
+import { downloadAndExtract } from '../utils/http.js';
 import { DEFAULT_EXCLUDE_FILES } from './installer.js';
 
 /**
@@ -106,7 +108,7 @@ export class CacheManager {
   }
 
   /**
-   * Cache skill
+   * Cache skill from Git repository
    */
   async cache(
     repoUrl: string,
@@ -145,11 +147,56 @@ export class CacheManager {
     }
 
     // Save commit info
-    const fs = await import('node:fs');
     fs.writeFileSync(path.join(cachePath, '.reskill-commit'), commit);
 
     // Clean up temp directory
     remove(tempPath);
+
+    return { path: cachePath, commit };
+  }
+
+  /**
+   * Cache skill from HTTP/OSS URL
+   *
+   * Downloads and extracts an archive from the given URL.
+   * Supports tar.gz, tgz, zip, and tar formats.
+   *
+   * @param url - HTTP/HTTPS URL to download from
+   * @param parsed - Parsed skill reference
+   * @param version - Version string for cache path
+   * @returns Cache path and a hash of the download URL as commit identifier
+   */
+  async cacheFromHttp(
+    url: string,
+    parsed: ParsedSkillRef,
+    version: string,
+  ): Promise<{ path: string; commit: string }> {
+    const cachePath = this.getSkillCachePath(parsed, version);
+
+    // If exists, delete first
+    if (exists(cachePath)) {
+      remove(cachePath);
+    }
+
+    ensureDir(path.dirname(cachePath));
+
+    // Download and extract to cache path
+    await downloadAndExtract(url, cachePath);
+
+    // Generate a commit-like identifier from URL and version
+    // This serves as a pseudo-commit for HTTP sources
+    const crypto = await import('node:crypto');
+    const commit = crypto
+      .createHash('sha256')
+      .update(`${url}@${version}`)
+      .digest('hex')
+      .slice(0, 40);
+
+    // Save commit info
+    fs.writeFileSync(path.join(cachePath, '.reskill-commit'), commit);
+
+    // Also save the source URL for reference
+    fs.writeFileSync(path.join(cachePath, '.reskill-source'), url);
 
     return { path: cachePath, commit };
   }
@@ -260,11 +307,7 @@ export class CacheManager {
       const lines = allRefs.trim().split('\n');
       for (const line of lines) {
         const [commit, refPath] = line.split('\t');
-        if (
-          refPath === `refs/heads/${ref}` ||
-          refPath === `refs/tags/${ref}` ||
-          refPath === ref
-        ) {
+        if (refPath === `refs/heads/${ref}` || refPath === `refs/tags/${ref}` || refPath === ref) {
           return commit;
         }
       }

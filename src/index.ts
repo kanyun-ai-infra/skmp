@@ -12,13 +12,12 @@ export {
   CacheManager,
   ConfigLoader,
   DEFAULT_REGISTRIES,
-  detectInstalledAgents,
-  GitResolver,
-  generateSkillMd,
+  detectInstalledAgents, generateSkillMd,
   getAgentConfig,
   getAgentSkillsDir,
-  getAllAgentTypes,
-  hasValidSkillMd,
+  getAllAgentTypes, GitResolver, hasValidSkillMd,
+  // HTTP/OSS support
+  HttpResolver,
   Installer,
   isValidAgentType,
   LockManager,
@@ -29,7 +28,7 @@ export {
   SkillManager,
   SkillValidationError,
   validateSkillDescription,
-  validateSkillName,
+  validateSkillName
 } from './core/index.js';
 
 // Type exports
@@ -51,14 +50,14 @@ export type {
   SkillsJson,
   SkillsLock,
   UpdateOptions,
-  VersionType,
+  VersionType
 } from './types/index.js';
 export {
   getCanonicalSkillPath,
   getCanonicalSkillsDir,
   isPathSafe,
   sanitizeName,
-  shortenPath,
+  shortenPath
 } from './utils/fs.js';
 // Utility exports
 export { logger } from './utils/index.js';
