@@ -14,6 +14,10 @@
 | [info](#info) | - | Show skill information |
 | [update](#update) | `up` | Update skills to latest version |
 | [outdated](#outdated) | - | Check for outdated skills |
+| [publish](#publish) | `pub` | Publish a skill to the registry |
+| [login](#login) | - | Authenticate with the registry |
+| [logout](#logout) | - | Remove stored authentication |
+| [whoami](#whoami) | - | Display current logged in user |
 | [doctor](#doctor) | - | Diagnose environment and check for issues |
 | [completion](#completion) | - | Setup shell completion |
 
@@ -422,6 +426,294 @@ Or 'reskill update <skill>' to update a specific skill
 
 ---
 
+## publish
+
+Publish a skill to the registry.
+
+### Synopsis
+
+```
+reskill publish [path] [options]
+reskill pub [path] [options]
+```
+
+### Arguments
+
+| Argument | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `path` | No | `.` | Path to skill directory |
+
+### Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `-r, --registry <url>` | `https://registry.reskill.dev` | Registry URL |
+| `-t, --tag <tag>` | auto-detect | Git tag to publish |
+| `--access <level>` | `public` | Access level: `public` or `restricted` |
+| `-n, --dry-run` | `false` | Validate without publishing |
+| `-y, --yes` | `false` | Skip confirmation prompts |
+
+### Validation Rules
+
+**skill.json (required):**
+
+| Field | Required | Validation |
+|-------|----------|------------|
+| `name` | Yes | Lowercase letters, numbers, hyphens; 1-64 chars; pattern: `^[a-z0-9][a-z0-9-]*[a-z0-9]$` |
+| `version` | Yes | Semver format: `x.y.z` or `x.y.z-prerelease` |
+| `description` | Yes | 1-1024 chars, no angle brackets |
+| `author` | No | String |
+| `license` | No | SPDX identifier (e.g., `MIT`, `Apache-2.0`) |
+| `keywords` | No | Array of strings, max 10 |
+| `entry` | No | Default: `SKILL.md` |
+| `files` | No | Array of file paths to include |
+
+**SKILL.md (recommended):**
+
+| Field | Required | Validation |
+|-------|----------|------------|
+| `name` | Yes | Must match skill.json name |
+| `description` | Yes | 1-1024 chars |
+
+### Behavior
+
+| Scenario | Expected Behavior | Exit Code |
+|----------|-------------------|-----------|
+| Valid skill with skill.json | Publish metadata to registry | `0` |
+| Missing skill.json | Error: "skill.json not found" | `1` |
+| Missing SKILL.md | Warning, continue with skill.json only | `0` |
+| Invalid skill name format | Error with validation message | `1` |
+| Invalid version format | Error with validation message | `1` |
+| Missing required field | Error listing missing fields | `1` |
+| SKILL.md name mismatch | Error: name must match skill.json | `1` |
+| Not logged in (without --dry-run) | Error: "Run 'reskill login' first" | `1` |
+| `--dry-run` | Validate and show what would be published | `0` |
+| Version already published | Error: "Version already exists" | `1` |
+| Uncommitted git changes | Warning, allow publish | `0` |
+| No git tag on commit | Warning, use commit hash | `0` |
+
+### Output
+
+**Success:**
+```
+📦 Publishing my-skill@1.0.0...
+
+Validating skill...
+  ✓ skill.json found
+  ✓ SKILL.md found
+  ✓ Name: my-skill
+  ✓ Version: 1.0.0
+  ✓ Description: A helpful AI skill
+
+Git information:
+  ✓ Repository: https://github.com/user/my-skill
+  ✓ Tag: v1.0.0
+  ✓ Commit: abc1234 (2026-01-24)
+  ✓ Working tree clean
+
+Files to publish:
+  • SKILL.md (2.3 KB)
+  • skill.json (512 B)
+  Total: 2 files, 2.8 KB
+
+Metadata:
+  • Keywords: typescript, testing
+  • License: MIT
+
+? Publish my-skill@1.0.0 to https://registry.reskill.dev? (y/N) y
+
+Publishing...
+
+✓ Published my-skill@1.0.0
+
+  View: https://reskill.dev/skills/my-skill
+  Install: reskill install my-skill@1.0.0
+```
+
+**Dry run:**
+```
+📦 Dry run: my-skill@1.0.0
+
+Validating skill...
+  ✓ skill.json found
+  ✓ SKILL.md found
+  ✓ Name: my-skill
+  ✓ Version: 1.0.0
+
+Git information:
+  ✓ Repository: https://github.com/user/my-skill
+  ✓ Tag: v1.0.0
+  ✓ Commit: abc1234
+
+Files to publish:
+  • SKILL.md (2.3 KB)
+  • skill.json (512 B)
+  Total: 2 files, 2.8 KB
+
+Integrity: sha256-abc123...
+
+No changes made (--dry-run)
+```
+
+**Validation errors:**
+```
+📦 Publishing my-skill@1.0.0...
+
+Validating skill...
+  ✓ skill.json found
+  ✗ Name: MySkill (invalid: must be lowercase)
+  ✗ Version: 1.0 (invalid: must be semver x.y.z)
+
+Validation failed with 2 error(s):
+
+  1. Skill name must be lowercase letters, numbers, and hyphens only
+     → Change "MySkill" to "my-skill"
+
+  2. Version must follow semver format (x.y.z)
+     → Change "1.0" to "1.0.0"
+```
+
+---
+
+## login
+
+Authenticate with the registry.
+
+### Synopsis
+
+```
+reskill login [options]
+```
+
+### Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `-r, --registry <url>` | `https://registry.reskill.dev` | Registry URL |
+| `--token <token>` | - | Use token directly (for CI/CD) |
+
+### Behavior
+
+| Scenario | Expected Behavior | Exit Code |
+|----------|-------------------|-----------|
+| Interactive login | Prompt for token, save to ~/.reskillrc | `0` |
+| `--token` provided | Save token, verify with registry | `0` |
+| Invalid token | Error: "Invalid token" | `1` |
+| Already logged in | Info: show current user, offer to re-login | `0` |
+
+### Output
+
+**Interactive:**
+```
+? Enter your access token: ********
+
+Verifying token...
+✓ Logged in as octocat (octocat@github.com)
+
+Token saved to ~/.reskillrc
+```
+
+**With --token:**
+```
+Verifying token...
+✓ Logged in as octocat (octocat@github.com)
+```
+
+### Configuration File
+
+Tokens are stored in `~/.reskillrc`:
+
+```json
+{
+  "registries": {
+    "https://registry.reskill.dev": {
+      "token": "rsk_xxxxxxxx",
+      "email": "user@example.com"
+    }
+  }
+}
+```
+
+### Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `RESKILL_TOKEN` | Auth token (takes precedence over ~/.reskillrc) |
+| `RESKILL_REGISTRY` | Default registry URL |
+
+---
+
+## logout
+
+Remove stored authentication.
+
+### Synopsis
+
+```
+reskill logout [options]
+```
+
+### Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `-r, --registry <url>` | `https://registry.reskill.dev` | Registry URL |
+
+### Behavior
+
+| Scenario | Expected Behavior | Exit Code |
+|----------|-------------------|-----------|
+| Token exists | Remove token from ~/.reskillrc | `0` |
+| Not logged in | Info: "Not logged in" | `0` |
+
+### Output
+
+```
+✓ Logged out from https://registry.reskill.dev
+```
+
+---
+
+## whoami
+
+Display current logged in user.
+
+### Synopsis
+
+```
+reskill whoami [options]
+```
+
+### Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `-r, --registry <url>` | `https://registry.reskill.dev` | Registry URL |
+
+### Behavior
+
+| Scenario | Expected Behavior | Exit Code |
+|----------|-------------------|-----------|
+| Logged in | Show username and email | `0` |
+| Not logged in | Error: "Not logged in" | `1` |
+| Token invalid | Error: "Token expired or invalid" | `1` |
+
+### Output
+
+**Logged in:**
+```
+Logged in as octocat (octocat@github.com)
+Registry: https://registry.reskill.dev
+```
+
+**Not logged in:**
+```
+Not logged in to https://registry.reskill.dev
+Run 'reskill login' to authenticate
+```
+
+---
+
 ## doctor
 
 Diagnose reskill environment and check for potential issues.
@@ -658,6 +950,8 @@ These options are available for all commands:
 | `DEBUG` | Enable debug logging when set |
 | `NO_COLOR` | Disable colored output |
 | `RESKILL_CACHE_DIR` | Custom cache directory (default: `~/.reskill-cache`) |
+| `RESKILL_TOKEN` | Auth token for registry (takes precedence over ~/.reskillrc) |
+| `RESKILL_REGISTRY` | Default registry URL |
 
 ---
 
@@ -707,10 +1001,19 @@ Track specification changes here:
 
 | Date | Version | Changes |
 |------|---------|---------|
+| 2026-01-24 | 0.1.4 | Added publish, login, logout, whoami commands |
 | 2026-01-23 | 0.1.3 | Added doctor command specification |
 | 2026-01-23 | 0.1.2 | Added version formats and registry support documentation |
 | 2026-01-23 | 0.1.1 | Fixed spec to match actual implementation |
 | 2026-01-23 | 0.1.0 | Initial specification |
+
+### 0.1.4 Additions
+
+- Added `publish` command for publishing skills to registry
+- Added `login` command for authentication
+- Added `logout` command for removing authentication
+- Added `whoami` command for displaying current user
+- Added `RESKILL_TOKEN` and `RESKILL_REGISTRY` environment variables
 
 ### 0.1.3 Additions
 

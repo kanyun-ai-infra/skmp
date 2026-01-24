@@ -15,6 +15,7 @@ import {
   listCommand,
   maybeHandleCompletion,
   outdatedCommand,
+  publishCommand,
   uninstallCommand,
   updateCommand,
 } from './commands/index.js';
@@ -43,6 +44,7 @@ program.addCommand(infoCommand);
 program.addCommand(updateCommand);
 program.addCommand(outdatedCommand);
 program.addCommand(uninstallCommand);
+program.addCommand(publishCommand);
 program.addCommand(completionCommand);
 program.addCommand(doctorCommand);
 
