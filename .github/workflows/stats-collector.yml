@@ -1,0 +1,161 @@
+name: Daily Stats Collection
+
+on:
+  schedule:
+    # 每天早上 8:00 UTC (北京时间 16:00)
+    - cron: '0 8 * * *'
+  workflow_dispatch: # 允许手动触发
+
+jobs:
+  collect-stats:
+    name: Collect Project Statistics
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Collect GitHub Stats
+        id: github-stats
+        run: |
+          # 获取仓库基本信息
+          REPO_DATA=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/kanyun-inc/reskill")
+
+          STARS=$(echo "$REPO_DATA" | jq -r '.stargazers_count')
+          FORKS=$(echo "$REPO_DATA" | jq -r '.forks_count')
+
+          # 获取 open PRs 数量
+          OPEN_PRS=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/kanyun-inc/reskill/pulls?state=open" | jq length)
+
+          # 获取 open issues 数量
+          OPEN_ISSUES=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/kanyun-inc/reskill/issues?state=open" | jq length)
+
+          echo "stars=$STARS" >> $GITHUB_OUTPUT
+          echo "forks=$FORKS" >> $GITHUB_OUTPUT
+          echo "open_prs=$OPEN_PRS" >> $GITHUB_OUTPUT
+          echo "open_issues=$OPEN_ISSUES" >> $GITHUB_OUTPUT
+
+          echo "✅ GitHub Stats collected:"
+          echo "  Stars: $STARS"
+          echo "  Forks: $FORKS"
+          echo "  Open PRs: $OPEN_PRS"
+          echo "  Open Issues: $OPEN_ISSUES"
+
+      - name: Collect NPM Stats
+        id: npm-stats
+        run: |
+          # 获取包名 (从 package.json)
+          PACKAGE_NAME=$(jq -r '.name' package.json)
+
+          # 获取 npm 下载统计
+          NPM_DATA=$(curl -s "https://api.npmjs.org/downloads/range/2020-01-01:$(date +%Y-%m-%d)/$PACKAGE_NAME")
+
+          if echo "$NPM_DATA" | jq -e '.downloads' > /dev/null; then
+            TOTAL_DOWNLOADS=$(echo "$NPM_DATA" | jq '[.downloads[].downloads] | add')
+            LAST_WEEK_DATA=$(curl -s "https://api.npmjs.org/downloads/point/last-week/$PACKAGE_NAME")
+            LAST_WEEK_DOWNLOADS=$(echo "$LAST_WEEK_DATA" | jq -r '.downloads // 0')
+          else
+            echo "⚠️ Package not found on npm or no download data available"
+            TOTAL_DOWNLOADS=0
+            LAST_WEEK_DOWNLOADS=0
+          fi
+
+          echo "total_downloads=$TOTAL_DOWNLOADS" >> $GITHUB_OUTPUT
+          echo "last_week_downloads=$LAST_WEEK_DOWNLOADS" >> $GITHUB_OUTPUT
+
+          echo "✅ NPM Stats collected:"
+          echo "  Package: $PACKAGE_NAME"
+          echo "  Total Downloads: $TOTAL_DOWNLOADS"
+          echo "  Last Week Downloads: $LAST_WEEK_DOWNLOADS"
+
+      - name: Generate Stats Summary
+        id: summary
+        run: |
+          TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
+
+          cat > stats-summary.md << EOF
+          # 📊 reskill 项目统计报告
+
+          **收集时间**: $TIMESTAMP
+
+          ## GitHub 统计
+          - ⭐ Stars: ${{ steps.github-stats.outputs.stars }}
+          - 🍴 Forks: ${{ steps.github-stats.outputs.forks }}
+          - 🔄 Open PRs: ${{ steps.github-stats.outputs.open_prs }}
+          - 🐛 Open Issues: ${{ steps.github-stats.outputs.open_issues }}
+
+          ## NPM 统计
+          - 📦 总下载量: ${{ steps.npm-stats.outputs.total_downloads }}
+          - 📈 上周下载量: ${{ steps.npm-stats.outputs.last_week_downloads }}
+
+          ---
+          *此报告由 GitHub Actions 自动生成*
+          EOF
+
+          echo "Generated stats summary:"
+          cat stats-summary.md
+
+      - name: Upload Stats as Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-stats-$(date +%Y%m%d)
+          path: stats-summary.md
+          retention-days: 30
+
+      - name: Output JSON Stats
+        run: |
+          cat > stats.json << EOF
+          {
+            "timestamp": "$(date -u '+%Y-%m-%d %H:%M:%S UTC')",
+            "github": {
+              "stars": ${{ steps.github-stats.outputs.stars }},
+              "forks": ${{ steps.github-stats.outputs.forks }},
+              "open_prs": ${{ steps.github-stats.outputs.open_prs }},
+              "open_issues": ${{ steps.github-stats.outputs.open_issues }}
+            },
+            "npm": {
+              "total_downloads": ${{ steps.npm-stats.outputs.total_downloads }},
+              "last_week_downloads": ${{ steps.npm-stats.outputs.last_week_downloads }}
+            }
+          }
+          EOF
+
+          echo "📋 JSON Stats:"
+          cat stats.json | jq .
+
+      - name: Create Stats Report Issue
+        run: |
+          # 读取统计报告内容
+          REPORT_BODY=$(cat stats-summary.md)
+          DATE_STR=$(date +%Y-%m-%d)
+
+          # 创建 Issue
+          ISSUE_RESPONSE=$(curl -X POST \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/kanyun-inc/reskill/issues" \
+            -d '{
+              "title": "Stats Report ('"$DATE_STR"')",
+              "body": "'"${REPORT_BODY//$'\n'/\\n}"'",
+              "labels": ["collect-stats-action-report"]
+            }')
+
+          # 获取创建的 Issue 编号
+          ISSUE_NUMBER=$(echo "$ISSUE_RESPONSE" | jq -r '.number')
+          echo "✅ Created issue #$ISSUE_NUMBER"
+
+          # 立即关闭 Issue
+          curl -X PATCH \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/kanyun-inc/reskill/issues/$ISSUE_NUMBER" \
+            -d '{"state": "closed"}'
+
+          echo "✅ Closed issue #$ISSUE_NUMBER"
+          echo "📋 Issue URL: https://github.com/kanyun-inc/reskill/issues/$ISSUE_NUMBER"
