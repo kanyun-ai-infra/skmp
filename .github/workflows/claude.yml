@@ -55,5 +55,5 @@ jobs:
         with:
           use_bedrock: "true"
           claude_args: |
-            --model arn:aws:bedrock:us-west-2:027950631154:application-inference-profile/wlcpp1q16dge
+            --model ${{ secrets.CLAUDE_MODEL_ARN }}
           github_token: ${{ steps.app-token.outputs.token }}
