@@ -21,6 +21,8 @@ export interface SkillMdFrontmatter {
   name: string;
   /** Skill description (required) */
   description: string;
+  /** Version (optional, semver format) */
+  version?: string;
   /** License */
   license?: string;
   /** Compatibility requirements */
@@ -39,6 +41,8 @@ export interface ParsedSkill {
   name: string;
   /** Skill description */
   description: string;
+  /** Version (optional, semver format) */
+  version?: string;
   /** License */
   license?: string;
   /** Compatibility requirements */
@@ -308,6 +312,7 @@ export function parseSkillMd(
     return {
       name,
       description,
+      version: data.version ? String(data.version) : undefined,
       license: data.license ? String(data.license) : undefined,
       compatibility: data.compatibility ? String(data.compatibility) : undefined,
       metadata: data.metadata as Record<string, unknown> | undefined,

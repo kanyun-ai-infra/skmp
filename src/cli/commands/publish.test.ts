@@ -5,7 +5,8 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { isBlockedPublicRegistry } from './publish.js';
+import { isBlockedPublicRegistry, buildPublishSkillName } from './publish.js';
+import { getScopeForRegistry } from '../../utils/registry-scope.js';
 
 describe('publish command', () => {
   // ============================================================================
@@ -98,6 +99,71 @@ describe('publish command', () => {
       it('should handle empty string', () => {
         expect(isBlockedPublicRegistry('')).toBe(false);
       });
+    });
+  });
+
+  // ============================================================================
+  // buildPublishSkillName tests
+  // ============================================================================
+
+  describe('buildPublishSkillName', () => {
+    describe('with known registry scope', () => {
+      it('should build skill name with registry scope for kanyun registry', () => {
+        const result = buildPublishSkillName(
+          'planning-with-files',
+          'https://reskill-test.zhenguanyu.com/',
+          'wangzirenbj',
+        );
+        // Should use @kanyun (registry scope), not @wangzirenbj (user handle)
+        expect(result).toBe('@kanyun/planning-with-files');
+      });
+
+      it('should handle registry without trailing slash', () => {
+        const result = buildPublishSkillName(
+          'my-skill',
+          'https://reskill-test.zhenguanyu.com',
+          'someuser',
+        );
+        expect(result).toBe('@kanyun/my-skill');
+      });
+    });
+
+    describe('with unknown registry scope', () => {
+      it('should fallback to user handle for unknown registry', () => {
+        const result = buildPublishSkillName(
+          'my-skill',
+          'https://unknown-registry.com/',
+          'wangzirenbj',
+        );
+        // Falls back to user handle when registry scope is not configured
+        expect(result).toBe('@wangzirenbj/my-skill');
+      });
+    });
+
+    describe('with name already containing scope', () => {
+      it('should keep existing scope if name already has one', () => {
+        const result = buildPublishSkillName(
+          '@existing/my-skill',
+          'https://reskill-test.zhenguanyu.com/',
+          'wangzirenbj',
+        );
+        // Should preserve existing scope
+        expect(result).toBe('@existing/my-skill');
+      });
+    });
+  });
+
+  // ============================================================================
+  // getScopeForRegistry tests (integration)
+  // ============================================================================
+
+  describe('getScopeForRegistry', () => {
+    it('should return @kanyun for reskill-test.zhenguanyu.com', () => {
+      expect(getScopeForRegistry('https://reskill-test.zhenguanyu.com/')).toBe('@kanyun');
+    });
+
+    it('should return null for unknown registry', () => {
+      expect(getScopeForRegistry('https://other-registry.com/')).toBeNull();
     });
   });
 });

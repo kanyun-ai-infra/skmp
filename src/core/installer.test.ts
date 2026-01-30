@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { AgentType } from './agent-registry.js';
 import { Installer } from './installer.js';
+import { getShortName } from '../utils/registry-scope.js';
 
 describe('Installer', () => {
   let tempDir: string;
@@ -554,6 +555,54 @@ This is test content.
 
       expect(result.success).toBe(true);
       expect(existsSync(result.path)).toBe(true);
+    });
+  });
+
+  // ============================================================================
+  // Scoped skill name handling tests
+  // ============================================================================
+
+  describe('scoped skill name handling', () => {
+    it('should extract short name from scoped skill name', () => {
+      // getShortName is used to get directory name from scoped skill name
+      expect(getShortName('@kanyun/planning-with-files')).toBe('planning-with-files');
+      expect(getShortName('@myorg/my-skill')).toBe('my-skill');
+      expect(getShortName('simple-skill')).toBe('simple-skill');
+    });
+
+    it('should install scoped skill using short name as directory', async () => {
+      // When installing @kanyun/planning-with-files, the directory should be 'planning-with-files'
+      const scopedSkillName = '@kanyun/planning-with-files';
+      const shortName = getShortName(scopedSkillName);
+
+      const result = await installer.installForAgent(sourceDir, shortName, 'cursor', {
+        mode: 'copy',
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.path).toContain('planning-with-files');
+      expect(result.path).not.toContain('@kanyun');
+      expect(existsSync(result.path)).toBe(true);
+    });
+
+    it('should use short name for canonical path', () => {
+      const scopedSkillName = '@kanyun/my-skill';
+      const shortName = getShortName(scopedSkillName);
+
+      const canonicalPath = installer.getCanonicalPath(shortName);
+
+      expect(canonicalPath).toContain('my-skill');
+      expect(canonicalPath).not.toContain('@kanyun');
+    });
+
+    it('should use short name for agent skill path', () => {
+      const scopedSkillName = '@other/test-skill';
+      const shortName = getShortName(scopedSkillName);
+
+      const agentPath = installer.getAgentSkillPath(shortName, 'cursor');
+
+      expect(agentPath).toContain('test-skill');
+      expect(agentPath).not.toContain('@other');
     });
   });
 });

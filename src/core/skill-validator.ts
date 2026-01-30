@@ -279,8 +279,8 @@ export class SkillValidator {
    * This allows publishing skills that only have SKILL.md (per agentskills.io spec)
    */
   private synthesizeSkillJson(skillMd: ParsedSkill): SkillJson {
-    // Extract version from metadata if available
-    const version = (skillMd.metadata?.version as string) || DEFAULT_VERSION;
+    // Extract version: first from top-level frontmatter, then from metadata, then default
+    const version = skillMd.version || (skillMd.metadata?.version as string) || DEFAULT_VERSION;
 
     return {
       name: skillMd.name,
@@ -293,22 +293,26 @@ export class SkillValidator {
 
   /**
    * Scan files to include in publish
+   *
+   * If includePatterns is specified, only include those files/directories.
+   * Otherwise, scan all files in the directory (excluding ignored patterns).
    */
   private scanFiles(skillPath: string, includePatterns?: string[]): string[] {
     const files: string[] = [];
     const seen = new Set<string>();
 
-    // Add default files
-    for (const file of DEFAULT_FILES) {
-      const filePath = path.join(skillPath, file);
-      if (fs.existsSync(filePath) && !seen.has(file)) {
-        files.push(file);
-        seen.add(file);
-      }
-    }
-
-    // Add files from skill.json files array
+    // If includePatterns specified, use selective scanning
     if (includePatterns && includePatterns.length > 0) {
+      // Add default files first
+      for (const file of DEFAULT_FILES) {
+        const filePath = path.join(skillPath, file);
+        if (fs.existsSync(filePath) && !seen.has(file)) {
+          files.push(file);
+          seen.add(file);
+        }
+      }
+
+      // Add files from skill.json files array
       for (const pattern of includePatterns) {
         const targetPath = path.join(skillPath, pattern);
 
@@ -323,20 +327,64 @@ export class SkillValidator {
           }
         }
       }
+    } else {
+      // No includePatterns: scan entire directory (default behavior)
+      this.addFilesFromDir(skillPath, '', files, seen);
     }
 
     return files;
   }
 
   /**
+   * Patterns to ignore when scanning directories
+   */
+  private static readonly IGNORE_PATTERNS = [
+    '.git',
+    '.svn',
+    '.hg',
+    'node_modules',
+    '.DS_Store',
+    'Thumbs.db',
+    '.idea',
+    '.vscode',
+    '*.log',
+    '*.tmp',
+    '*.swp',
+    '*.bak',
+  ];
+
+  /**
+   * Check if a file/directory should be ignored
+   */
+  private shouldIgnore(name: string): boolean {
+    for (const pattern of SkillValidator.IGNORE_PATTERNS) {
+      if (pattern.startsWith('*')) {
+        // Wildcard pattern (e.g., *.log)
+        const ext = pattern.slice(1);
+        if (name.endsWith(ext)) {
+          return true;
+        }
+      } else if (name === pattern) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
    * Recursively add files from directory
    */
   private addFilesFromDir(basePath: string, dirPath: string, files: string[], seen: Set<string>): void {
-    const fullPath = path.join(basePath, dirPath);
+    const fullPath = dirPath ? path.join(basePath, dirPath) : basePath;
     const entries = fs.readdirSync(fullPath, { withFileTypes: true });
 
     for (const entry of entries) {
-      const relativePath = path.join(dirPath, entry.name);
+      // Skip ignored files/directories
+      if (this.shouldIgnore(entry.name)) {
+        continue;
+      }
+
+      const relativePath = dirPath ? path.join(dirPath, entry.name) : entry.name;
       if (entry.isDirectory()) {
         this.addFilesFromDir(basePath, relativePath, files, seen);
       } else if (!seen.has(relativePath)) {
@@ -454,17 +502,17 @@ export class SkillValidator {
         suggestion: 'Create skill.json for additional metadata like version, keywords',
       });
 
-      // Check if version is in SKILL.md metadata
-      const metadataVersion = skillMd.metadata?.version as string | undefined;
-      if (!metadataVersion) {
+      // Check if version is in SKILL.md (top-level or metadata)
+      const skillMdVersion = skillMd.version || (skillMd.metadata?.version as string | undefined);
+      if (!skillMdVersion) {
         warnings.push({
           field: 'version',
           message: `No version specified, defaulting to "${DEFAULT_VERSION}"`,
-          suggestion: 'Add version in skill.json or SKILL.md metadata.version',
+          suggestion: 'Add version in SKILL.md frontmatter or skill.json',
         });
       } else {
-        // Validate the version from metadata
-        const versionResult = this.validateVersion(metadataVersion);
+        // Validate the version from SKILL.md
+        const versionResult = this.validateVersion(skillMdVersion);
         errors.push(...versionResult.errors);
       }
     }

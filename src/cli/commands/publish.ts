@@ -19,6 +19,7 @@ import {
 } from '../../core/skill-validator.js';
 import { logger } from '../../utils/logger.js';
 import { resolveRegistry } from '../../utils/registry.js';
+import { getScopeForRegistry, buildFullSkillName } from '../../utils/registry-scope.js';
 
 // ============================================================================
 // Types
@@ -50,6 +51,42 @@ const BLOCKED_PUBLIC_REGISTRIES = [
 // ============================================================================
 // Helper Functions
 // ============================================================================
+
+/**
+ * Build the full skill name for publishing
+ *
+ * Priority:
+ * 1. If name already contains scope (e.g., "@scope/name"), use as-is
+ * 2. If registry has a configured scope, use that scope
+ * 3. Fallback to user handle as scope
+ *
+ * @param name - Skill name (may or may not include scope)
+ * @param registry - Registry URL
+ * @param userHandle - User's handle (fallback scope)
+ * @returns Full skill name with scope (e.g., "@kanyun/planning-with-files")
+ *
+ * @internal Exported for testing
+ */
+export function buildPublishSkillName(
+  name: string,
+  registry: string,
+  userHandle: string,
+): string {
+  // If name already has scope, use as-is
+  if (name.includes('/')) {
+    return name;
+  }
+
+  // Try to get scope from registry configuration
+  const registryScope = getScopeForRegistry(registry);
+
+  if (registryScope) {
+    return buildFullSkillName(registryScope, name);
+  }
+
+  // Fallback to user handle
+  return buildFullSkillName(userHandle, name);
+}
 
 /**
  * Check if a registry URL is a blocked public registry
@@ -442,17 +479,11 @@ async function publishAction(
     const client = new RegistryClient({ registry, token });
 
     try {
-      // Get skill name with scope (e.g., @handle/skill-name)
-      const handle = authManager.getHandle(registry);
-      if (!handle) {
-        logger.error('Cannot determine your handle. Please re-login.');
-        logger.log("Run 'reskill login' to authenticate.");
-        process.exit(1);
-      }
+      // Get skill name with scope
+      // Priority: registry scope > user handle
+      const handle = authManager.getHandle(registry) || 'unknown';
       const name = skill.skillJson?.name ?? '';
-      const skillName = name.includes('/') 
-        ? name 
-        : `@${handle}/${name}`;
+      const skillName = buildPublishSkillName(name, registry, handle);
 
       const result = await client.publish(
         skillName,

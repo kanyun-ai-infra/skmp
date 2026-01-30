@@ -12,6 +12,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { buildFullSkillName, getShortName } from '../utils/registry-scope.js';
 import { SkillValidator } from './skill-validator.js';
 
 describe('SkillValidator', () => {
@@ -29,10 +30,7 @@ describe('SkillValidator', () => {
 
   // Helper functions
   function createSkillJson(content: object): void {
-    fs.writeFileSync(
-      path.join(tempDir, 'skill.json'),
-      JSON.stringify(content, null, 2),
-    );
+    fs.writeFileSync(path.join(tempDir, 'skill.json'), JSON.stringify(content, null, 2));
   }
 
   function createSkillMd(content: string): void {
@@ -639,6 +637,108 @@ metadata:
 
       const skill = validator.loadSkill(tempDir);
       expect(skill.files.some((f) => f.includes('examples'))).toBe(true);
+    });
+
+    it('should auto-scan all files when no skill.json exists', () => {
+      createValidSkillMd();
+      // Create some extra files and directories
+      fs.writeFileSync(path.join(tempDir, 'README.md'), '# README');
+      fs.writeFileSync(path.join(tempDir, 'examples.md'), '# Examples');
+      fs.mkdirSync(path.join(tempDir, 'scripts'));
+      fs.writeFileSync(path.join(tempDir, 'scripts', 'init.sh'), '#!/bin/bash');
+      fs.mkdirSync(path.join(tempDir, 'templates'));
+      fs.writeFileSync(path.join(tempDir, 'templates', 'task.md'), '# Task');
+
+      const skill = validator.loadSkill(tempDir);
+      expect(skill.files).toContain('SKILL.md');
+      expect(skill.files).toContain('README.md');
+      expect(skill.files).toContain('examples.md');
+      expect(
+        skill.files.some((f) => f.includes('scripts/init.sh') || f.includes('scripts\\init.sh')),
+      ).toBe(true);
+      expect(
+        skill.files.some(
+          (f) => f.includes('templates/task.md') || f.includes('templates\\task.md'),
+        ),
+      ).toBe(true);
+    });
+
+    it('should exclude .git and node_modules when auto-scanning', () => {
+      createValidSkillMd();
+      // Create directories that should be excluded
+      fs.mkdirSync(path.join(tempDir, '.git'));
+      fs.writeFileSync(path.join(tempDir, '.git', 'config'), 'git config');
+      fs.mkdirSync(path.join(tempDir, 'node_modules'));
+      fs.writeFileSync(path.join(tempDir, 'node_modules', 'package.json'), '{}');
+      // Create a file that should be included
+      fs.writeFileSync(path.join(tempDir, 'README.md'), '# README');
+
+      const skill = validator.loadSkill(tempDir);
+      expect(skill.files).toContain('SKILL.md');
+      expect(skill.files).toContain('README.md');
+      expect(skill.files.some((f) => f.includes('.git'))).toBe(false);
+      expect(skill.files.some((f) => f.includes('node_modules'))).toBe(false);
+    });
+
+    it('should use version from top-level SKILL.md frontmatter', () => {
+      createSkillMd(`---
+name: my-skill
+description: A helpful skill
+version: "2.4.1"
+---
+# Content`);
+
+      const skill = validator.loadSkill(tempDir);
+      expect(skill.skillJson).not.toBeNull();
+      expect(skill.skillJson?.version).toBe('2.4.1');
+      expect(skill.synthesized).toBe(true);
+    });
+  });
+
+  // ============================================================================
+  // buildFullSkillName integration tests (using registry-scope utilities)
+  // ============================================================================
+
+  describe('scope integration', () => {
+    it('should build full skill name with scope', () => {
+      const fullName = buildFullSkillName('@kanyun', 'planning-with-files');
+      expect(fullName).toBe('@kanyun/planning-with-files');
+    });
+
+    it('should extract short name from scoped skill name', () => {
+      const shortName = getShortName('@kanyun/planning-with-files');
+      expect(shortName).toBe('planning-with-files');
+    });
+
+    it('should use short name for directory when loading skill', () => {
+      // Create SKILL.md with name (without scope)
+      createSkillMd(`---
+name: planning-with-files
+description: A helpful skill
+version: "1.0.0"
+---
+# Content`);
+
+      const skill = validator.loadSkill(tempDir);
+      expect(skill.skillJson).not.toBeNull();
+      // The name in SKILL.md should be the short name (without scope)
+      expect(skill.skillJson?.name).toBe('planning-with-files');
+
+      // When combined with scope, it becomes the full name
+      const fullName = buildFullSkillName('@kanyun', skill.skillJson?.name || '');
+      expect(fullName).toBe('@kanyun/planning-with-files');
+    });
+
+    it('should validate skill name without scope prefix', () => {
+      // Name in SKILL.md should not include scope
+      const result = validator.validateName('planning-with-files');
+      expect(result.valid).toBe(true);
+    });
+
+    it('should reject name with scope prefix (scope should be added by registry)', () => {
+      // Names with @ prefix should be rejected (scope is added separately)
+      const result = validator.validateName('@kanyun/planning-with-files');
+      expect(result.valid).toBe(false);
     });
   });
 
