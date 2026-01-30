@@ -7,7 +7,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   getScopeForRegistry,
+  getRegistryForScope,
+  getRegistryUrl,
+  PUBLIC_REGISTRY,
   parseSkillName,
+  parseSkillIdentifier,
   buildFullSkillName,
   getShortName,
 } from './registry-scope.js';
@@ -28,6 +32,81 @@ describe('registry-scope', () => {
 
     it('should return null for empty string', () => {
       expect(getScopeForRegistry('')).toBeNull();
+    });
+  });
+
+  describe('getRegistryForScope', () => {
+    it('should return registry for known scope @kanyun', () => {
+      const registry = getRegistryForScope('@kanyun');
+      expect(registry).toBe('https://reskill-test.zhenguanyu.com/');
+    });
+
+    it('should handle scope without @ prefix', () => {
+      const registry = getRegistryForScope('kanyun');
+      expect(registry).toBe('https://reskill-test.zhenguanyu.com/');
+    });
+
+    it('should return null for unknown scope', () => {
+      expect(getRegistryForScope('@unknown')).toBeNull();
+    });
+
+    it('should return null for empty string', () => {
+      expect(getRegistryForScope('')).toBeNull();
+    });
+  });
+
+  // ============================================================================
+  // getRegistryUrl tests (Step 3.2)
+  // 根据 scope 确定 Registry URL
+  // ============================================================================
+
+  describe('getRegistryUrl', () => {
+    // 公共 Registry 常量
+    it('PUBLIC_REGISTRY should be defined', () => {
+      expect(PUBLIC_REGISTRY).toBe('https://reskill.info/');
+    });
+
+    // 私有 Registry（有 scope）
+    describe('private registry (with scope)', () => {
+      it('should resolve registry from known scope @kanyun', () => {
+        const registry = getRegistryUrl('@kanyun');
+        expect(registry).toBe('https://reskill-test.zhenguanyu.com/');
+      });
+
+      it('should handle scope without @ prefix', () => {
+        const registry = getRegistryUrl('kanyun');
+        expect(registry).toBe('https://reskill-test.zhenguanyu.com/');
+      });
+
+      it('should throw error for unknown scope', () => {
+        expect(() => getRegistryUrl('@unknown')).toThrow(
+          'Unknown scope @unknown. No registry configured for this scope.',
+        );
+      });
+
+      it('should throw error for unknown scope without @ prefix', () => {
+        expect(() => getRegistryUrl('unknown-org')).toThrow(
+          'Unknown scope @unknown-org. No registry configured for this scope.',
+        );
+      });
+    });
+
+    // 公共 Registry（无 scope）
+    describe('public registry (no scope)', () => {
+      it('should return public registry when scope is null', () => {
+        const registry = getRegistryUrl(null);
+        expect(registry).toBe('https://reskill.info/');
+      });
+
+      it('should return public registry when scope is undefined', () => {
+        const registry = getRegistryUrl(undefined);
+        expect(registry).toBe('https://reskill.info/');
+      });
+
+      it('should return public registry when scope is empty string', () => {
+        const registry = getRegistryUrl('');
+        expect(registry).toBe('https://reskill.info/');
+      });
     });
   });
 
@@ -88,6 +167,161 @@ describe('registry-scope', () => {
 
     it('should handle different scopes', () => {
       expect(getShortName('@other/my-skill')).toBe('my-skill');
+    });
+  });
+
+  // ============================================================================
+  // parseSkillIdentifier tests (Step 3.1)
+  // 支持私有 Registry (@scope/name@version) 和公共 Registry (name@version)
+  // ============================================================================
+
+  describe('parseSkillIdentifier', () => {
+    // -------------------------------------------------------------------------
+    // 私有 Registry（带 @scope）
+    // -------------------------------------------------------------------------
+    describe('private registry (scoped)', () => {
+      it('should parse scope and name', () => {
+        const result = parseSkillIdentifier('@kanyun/planning-with-files');
+        expect(result).toEqual({
+          scope: '@kanyun',
+          name: 'planning-with-files',
+          version: undefined,
+          fullName: '@kanyun/planning-with-files',
+        });
+      });
+
+      it('should parse scope, name, and version', () => {
+        const result = parseSkillIdentifier('@kanyun/planning-with-files@2.4.5');
+        expect(result).toEqual({
+          scope: '@kanyun',
+          name: 'planning-with-files',
+          version: '2.4.5',
+          fullName: '@kanyun/planning-with-files',
+        });
+      });
+
+      it('should parse scope, name, and tag', () => {
+        const result = parseSkillIdentifier('@kanyun/planning-with-files@beta');
+        expect(result).toEqual({
+          scope: '@kanyun',
+          name: 'planning-with-files',
+          version: 'beta',
+          fullName: '@kanyun/planning-with-files',
+        });
+      });
+
+      it('should handle scope with hyphen', () => {
+        const result = parseSkillIdentifier('@my-org/my-skill');
+        expect(result.scope).toBe('@my-org');
+        expect(result.name).toBe('my-skill');
+      });
+
+      it('should handle scope with underscore', () => {
+        const result = parseSkillIdentifier('@my_org/my_skill');
+        expect(result.scope).toBe('@my_org');
+        expect(result.name).toBe('my_skill');
+      });
+
+      it('should handle version with prerelease tag', () => {
+        const result = parseSkillIdentifier('@kanyun/skill@1.0.0-beta.1');
+        expect(result).toEqual({
+          scope: '@kanyun',
+          name: 'skill',
+          version: '1.0.0-beta.1',
+          fullName: '@kanyun/skill',
+        });
+      });
+
+      it('should handle latest tag', () => {
+        const result = parseSkillIdentifier('@kanyun/skill@latest');
+        expect(result).toEqual({
+          scope: '@kanyun',
+          name: 'skill',
+          version: 'latest',
+          fullName: '@kanyun/skill',
+        });
+      });
+    });
+
+    // -------------------------------------------------------------------------
+    // 公共 Registry（无 scope）
+    // -------------------------------------------------------------------------
+    describe('public registry (unscoped)', () => {
+      it('should parse name without scope', () => {
+        const result = parseSkillIdentifier('planning-with-files');
+        expect(result).toEqual({
+          scope: null,
+          name: 'planning-with-files',
+          version: undefined,
+          fullName: 'planning-with-files',
+        });
+      });
+
+      it('should parse name and version without scope', () => {
+        const result = parseSkillIdentifier('planning-with-files@2.4.5');
+        expect(result).toEqual({
+          scope: null,
+          name: 'planning-with-files',
+          version: '2.4.5',
+          fullName: 'planning-with-files',
+        });
+      });
+
+      it('should parse name and tag without scope', () => {
+        const result = parseSkillIdentifier('my-skill@latest');
+        expect(result).toEqual({
+          scope: null,
+          name: 'my-skill',
+          version: 'latest',
+          fullName: 'my-skill',
+        });
+      });
+
+      it('should handle name with numbers', () => {
+        const result = parseSkillIdentifier('skill-123');
+        expect(result).toEqual({
+          scope: null,
+          name: 'skill-123',
+          version: undefined,
+          fullName: 'skill-123',
+        });
+      });
+
+      it('should handle name with underscores', () => {
+        const result = parseSkillIdentifier('my_skill@1.0.0');
+        expect(result).toEqual({
+          scope: null,
+          name: 'my_skill',
+          version: '1.0.0',
+          fullName: 'my_skill',
+        });
+      });
+    });
+
+    // -------------------------------------------------------------------------
+    // 边界情况和错误处理
+    // -------------------------------------------------------------------------
+    describe('edge cases and errors', () => {
+      it('should throw error for empty string', () => {
+        expect(() => parseSkillIdentifier('')).toThrow('Invalid skill identifier');
+      });
+
+      it('should throw error for whitespace only', () => {
+        expect(() => parseSkillIdentifier('   ')).toThrow('Invalid skill identifier');
+      });
+
+      it('should throw error for @ only', () => {
+        expect(() => parseSkillIdentifier('@')).toThrow('Invalid skill identifier');
+      });
+
+      it('should throw error for scope without name (@kanyun/)', () => {
+        expect(() => parseSkillIdentifier('@kanyun/')).toThrow('Invalid skill identifier');
+      });
+
+      it('should throw error for multiple @ signs that are not version', () => {
+        // @scope/name@version 是合法的，但 @@scope/name 不合法
+        expect(() => parseSkillIdentifier('@@invalid')).toThrow('Invalid skill identifier');
+      });
     });
   });
 });

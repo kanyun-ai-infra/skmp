@@ -38,15 +38,29 @@ export interface ParsedHttpUrl {
  */
 export class HttpResolver {
   /**
-   * Check if a reference is an HTTP/OSS URL
+   * Check if a reference is an HTTP/OSS URL (for archive downloads)
    *
    * Returns true for:
-   * - http:// or https:// URLs
+   * - http:// or https:// URLs pointing to archive files (.tar.gz, .tgz, .zip, .tar)
    * - Explicit oss:// or s3:// protocol URLs
+   *
+   * Returns false for:
+   * - Git repository URLs (*.git)
+   * - GitHub/GitLab web URLs (/tree/, /blob/, /raw/)
    */
   static isHttpUrl(ref: string): boolean {
     // Remove version suffix for checking (e.g., url@v1.0.0)
     const urlPart = ref.split('@')[0];
+
+    // 排除 Git 仓库 URL（以 .git 结尾）
+    if (urlPart.endsWith('.git')) {
+      return false;
+    }
+
+    // 排除 GitHub/GitLab web URL（包含 /tree/, /blob/, /raw/）
+    if (/\/(tree|blob|raw)\//.test(urlPart)) {
+      return false;
+    }
 
     return (
       urlPart.startsWith('http://') ||

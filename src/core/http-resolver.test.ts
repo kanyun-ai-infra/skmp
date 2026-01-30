@@ -32,6 +32,31 @@ describe('HttpResolver', () => {
     it('should return false for SSH URLs', () => {
       expect(HttpResolver.isHttpUrl('git@github.com:user/repo.git')).toBe(false);
     });
+
+    // 新增：排除 Git HTTPS URL
+    it('should return false for Git HTTPS URLs ending with .git', () => {
+      expect(HttpResolver.isHttpUrl('https://github.com/user/repo.git')).toBe(false);
+      expect(HttpResolver.isHttpUrl('https://gitlab.com/group/project.git')).toBe(false);
+    });
+
+    it('should return false for Git HTTPS URLs with version suffix', () => {
+      expect(HttpResolver.isHttpUrl('https://github.com/user/repo.git@v1.0.0')).toBe(false);
+      expect(HttpResolver.isHttpUrl('https://github.com/user/repo.git@main')).toBe(false);
+    });
+
+    // 新增：排除 GitHub/GitLab web URL
+    it('should return false for GitHub web URLs with /tree/', () => {
+      expect(HttpResolver.isHttpUrl('https://github.com/user/repo/tree/main')).toBe(false);
+      expect(HttpResolver.isHttpUrl('https://github.com/user/repo/tree/main/skills/planning')).toBe(false);
+    });
+
+    it('should return false for GitHub web URLs with /blob/', () => {
+      expect(HttpResolver.isHttpUrl('https://github.com/user/repo/blob/main/README.md')).toBe(false);
+    });
+
+    it('should return false for GitHub web URLs with /raw/', () => {
+      expect(HttpResolver.isHttpUrl('https://github.com/user/repo/raw/main/file.txt')).toBe(false);
+    });
   });
 
   describe('parseUrl', () => {

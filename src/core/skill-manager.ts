@@ -1,6 +1,7 @@
 import * as path from 'node:path';
 import type { InstalledSkill, InstallOptions, SkillJson } from '../types/index.js';
 import {
+  copyDir,
   ensureDir,
   exists,
   getGlobalSkillsDir,
@@ -13,10 +14,10 @@ import {
 } from '../utils/fs.js';
 import { logger } from '../utils/logger.js';
 import {
+  type AgentType,
   agents,
   detectInstalledAgents,
   isValidAgentType,
-  type AgentType,
 } from './agent-registry.js';
 import { CacheManager } from './cache-manager.js';
 import { ConfigLoader } from './config-loader.js';
@@ -24,6 +25,7 @@ import { GitResolver } from './git-resolver.js';
 import { HttpResolver } from './http-resolver.js';
 import { Installer, type InstallMode, type InstallResult } from './installer.js';
 import { LockManager } from './lock-manager.js';
+import { RegistryResolver } from './registry-resolver.js';
 
 /**
  * SkillManager configuration options
@@ -47,6 +49,7 @@ export class SkillManager {
   private projectRoot: string;
   private resolver: GitResolver;
   private httpResolver: HttpResolver;
+  private registryResolver: RegistryResolver;
   private cache: CacheManager;
   private config: ConfigLoader;
   private lockManager: LockManager;
@@ -63,6 +66,7 @@ export class SkillManager {
       this.config.getRegistryUrl(registryName),
     );
     this.httpResolver = new HttpResolver();
+    this.registryResolver = new RegistryResolver();
   }
 
   /**
@@ -144,10 +148,23 @@ export class SkillManager {
   }
 
   /**
+   * Detect if a reference is a registry source (@scope/name or name@version)
+   */
+  private isRegistrySource(ref: string): boolean {
+    return RegistryResolver.isRegistryRef(ref);
+  }
+
+  /**
    * Install skill
+   *
+   * Priority: Registry > HTTP > Git
    */
   async install(ref: string, options: InstallOptions = {}): Promise<InstalledSkill> {
     // Detect source type and delegate to appropriate installer
+    // Priority: Registry > HTTP > Git (registry first because its format is most restrictive)
+    if (this.isRegistrySource(ref)) {
+      return this.installFromRegistry(ref, options);
+    }
     if (this.isHttpSource(ref)) {
       return this.installFromHttp(ref, options);
     }
@@ -349,6 +366,93 @@ export class SkillManager {
     const installed = this.getInstalledSkill(skillName);
     if (!installed) {
       throw new Error(`Failed to get installed skill info for ${skillName}`);
+    }
+    return installed;
+  }
+
+  /**
+   * Install skill from npm-style Registry
+   *
+   * Supports:
+   * - Private registry: @scope/name[@version] (e.g., @kanyun/planning-with-files@2.4.5)
+   * - Public registry: name[@version] (e.g., my-skill@1.0.0)
+   */
+  private async installFromRegistry(
+    ref: string,
+    options: InstallOptions = {},
+  ): Promise<InstalledSkill> {
+    const { force = false, save = true } = options;
+
+    // 1. Resolve registry skill
+    logger.package(`Resolving ${ref} from registry...`);
+    const resolved = await this.registryResolver.resolve(ref);
+    const { shortName, version, registryUrl, tarball, parsed } = resolved;
+
+    const skillPath = this.getSkillPath(shortName);
+
+    // 2. Check if already installed (skip if --force)
+    if (exists(skillPath) && !force) {
+      const locked = this.lockManager.get(shortName);
+      const lockedVersion = locked?.version;
+
+      // Same version already installed
+      if (locked && lockedVersion === version) {
+        logger.info(`${shortName}@${version} is already installed`);
+        const installed = this.getInstalledSkill(shortName);
+        if (installed) return installed;
+      }
+
+      // Different version or no lock info - warn user
+      if (!force) {
+        logger.warn(`${shortName} is already installed. Use --force to reinstall.`);
+        const installed = this.getInstalledSkill(shortName);
+        if (installed) return installed;
+      }
+    }
+
+    logger.package(`Installing ${shortName}@${version} from ${registryUrl}...`);
+
+    // 3. Create temp directory for extraction
+    const tempDir = path.join(this.cache.getCacheDir(), 'registry-temp', `${shortName}-${version}`);
+    await ensureDir(tempDir);
+
+    // 4. Extract tarball
+    const extractedPath = await this.registryResolver.extract(tarball, tempDir);
+    logger.debug(`Extracted to ${extractedPath}`);
+
+    // 5. Copy to installation directory
+    ensureDir(this.getInstallDir());
+
+    if (exists(skillPath)) {
+      remove(skillPath);
+    }
+
+    // Copy from extracted path to skill path
+    copyDir(extractedPath, skillPath);
+
+    // 6. Update lock file (project mode only)
+    if (!this.isGlobal) {
+      this.lockManager.lockSkill(shortName, {
+        source: `registry:${parsed.fullName}`,
+        version,
+        ref: version,
+        resolved: registryUrl,
+        commit: resolved.integrity, // Use integrity as commit-like identifier
+      });
+    }
+
+    // 7. Update skills.json (project mode only)
+    if (!this.isGlobal && save) {
+      this.config.ensureExists();
+      this.config.addSkill(shortName, ref);
+    }
+
+    const locationHint = this.isGlobal ? '(global)' : '';
+    logger.success(`Installed ${shortName}@${version} to ${skillPath} ${locationHint}`.trim());
+
+    const installed = this.getInstalledSkill(shortName);
+    if (!installed) {
+      throw new Error(`Failed to get installed skill info for ${shortName}`);
     }
     return installed;
   }
@@ -704,6 +808,10 @@ export class SkillManager {
     results: Map<AgentType, InstallResult>;
   }> {
     // Detect source type and delegate to appropriate installer
+    // Priority: Registry > HTTP > Git (registry 优先，因为它的格式最受限)
+    if (this.isRegistrySource(ref)) {
+      return this.installToAgentsFromRegistry(ref, targetAgents, options);
+    }
     if (this.isHttpSource(ref)) {
       return this.installToAgentsFromHttp(ref, targetAgents, options);
     }
@@ -914,6 +1022,133 @@ export class SkillManager {
       path: sourcePath,
       version: semanticVersion,
       source: `http:${httpInfo.host}/${skillName}`,
+    };
+
+    return { skill, results };
+  }
+
+  /**
+   * Install skill from npm-style Registry to multiple agents
+   *
+   * Supports:
+   * - Private registry: @scope/name[@version] (e.g., @kanyun/planning-with-files@2.4.5)
+   * - Public registry: name[@version] (e.g., my-skill@1.0.0)
+   */
+  private async installToAgentsFromRegistry(
+    ref: string,
+    targetAgents: AgentType[],
+    options: InstallOptions = {},
+  ): Promise<{
+    skill: InstalledSkill;
+    results: Map<AgentType, InstallResult>;
+  }> {
+    const { force = false, save = true, mode = 'symlink' } = options;
+
+    // 1. Resolve registry skill
+    logger.package(`Resolving ${ref} from registry...`);
+    const resolved = await this.registryResolver.resolve(ref);
+    const { shortName, version, registryUrl, tarball, parsed } = resolved;
+
+    // 2. Check if already installed (skip if --force)
+    const skillPath = this.getSkillPath(shortName);
+    if (exists(skillPath) && !force) {
+      const locked = this.lockManager.get(shortName);
+      const lockedVersion = locked?.version;
+
+      // Same version already installed
+      if (locked && lockedVersion === version) {
+        logger.info(`${shortName}@${version} is already installed.`);
+        const installed = this.getInstalledSkill(shortName);
+        if (installed) {
+          return {
+            skill: installed,
+            results: new Map(
+              targetAgents.map((a) => [
+                a,
+                { success: true, path: skillPath, mode: mode as InstallMode },
+              ]),
+            ),
+          };
+        }
+      }
+
+      // Different version or no lock info - warn user
+      logger.warn(`${shortName} is already installed. Use --force to reinstall.`);
+      const installed = this.getInstalledSkill(shortName);
+      if (installed) {
+        return {
+          skill: installed,
+          results: new Map(
+            targetAgents.map((a) => [
+              a,
+              { success: true, path: skillPath, mode: mode as InstallMode },
+            ]),
+          ),
+        };
+      }
+    }
+
+    logger.package(
+      `Installing ${shortName}@${version} from ${registryUrl} to ${targetAgents.length} agent(s)...`,
+    );
+
+    // 3. Create temp directory for extraction
+    const tempDir = path.join(this.cache.getCacheDir(), 'registry-temp', `${shortName}-${version}`);
+    await ensureDir(tempDir);
+
+    // 4. Extract tarball
+    const extractedPath = await this.registryResolver.extract(tarball, tempDir);
+    logger.debug(`Extracted to ${extractedPath}`);
+
+    // 5. Create Installer with custom installDir from config
+    const defaults = this.config.getDefaults();
+    const installer = new Installer({
+      cwd: this.projectRoot,
+      global: this.isGlobal,
+      installDir: defaults.installDir,
+    });
+
+    // 6. Install to all target agents
+    const results = await installer.installToAgents(extractedPath, shortName, targetAgents, {
+      mode: mode as InstallMode,
+    });
+
+    // 7. Update lock file (project mode only)
+    if (!this.isGlobal) {
+      this.lockManager.lockSkill(shortName, {
+        source: `registry:${parsed.fullName}`,
+        version,
+        ref: version,
+        resolved: registryUrl,
+        commit: resolved.integrity, // Use integrity as commit-like identifier
+      });
+    }
+
+    // 8. Update skills.json (project mode only)
+    if (!this.isGlobal && save) {
+      this.config.ensureExists();
+      // Save with full name for registry skills
+      this.config.addSkill(shortName, ref);
+    }
+
+    // 9. Count results and log
+    const successCount = Array.from(results.values()).filter((r) => r.success).length;
+    const failCount = results.size - successCount;
+
+    if (failCount === 0) {
+      logger.success(`Installed ${shortName}@${version} to ${successCount} agent(s)`);
+    } else {
+      logger.warn(
+        `Installed ${shortName}@${version} to ${successCount} agent(s), ${failCount} failed`,
+      );
+    }
+
+    // 9. Build the InstalledSkill to return
+    const skill: InstalledSkill = {
+      name: shortName,
+      path: extractedPath,
+      version,
+      source: `registry:${parsed.fullName}`,
     };
 
     return { skill, results };
