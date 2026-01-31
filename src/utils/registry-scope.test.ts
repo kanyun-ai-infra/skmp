@@ -36,22 +36,74 @@ describe('registry-scope', () => {
   });
 
   describe('getRegistryForScope', () => {
-    it('should return registry for known scope @kanyun', () => {
-      const registry = getRegistryForScope('@kanyun');
-      expect(registry).toBe('https://reskill-test.zhenguanyu.com/');
+    describe('without custom scopeRegistries (backward compatibility)', () => {
+      it('should return registry for known scope @kanyun', () => {
+        const registry = getRegistryForScope('@kanyun');
+        expect(registry).toBe('https://reskill-test.zhenguanyu.com/');
+      });
+
+      it('should handle scope without @ prefix', () => {
+        const registry = getRegistryForScope('kanyun');
+        expect(registry).toBe('https://reskill-test.zhenguanyu.com/');
+      });
+
+      it('should return null for unknown scope', () => {
+        expect(getRegistryForScope('@unknown')).toBeNull();
+      });
+
+      it('should return null for empty string', () => {
+        expect(getRegistryForScope('')).toBeNull();
+      });
     });
 
-    it('should handle scope without @ prefix', () => {
-      const registry = getRegistryForScope('kanyun');
-      expect(registry).toBe('https://reskill-test.zhenguanyu.com/');
-    });
+    describe('with custom scopeRegistries', () => {
+      it('should use custom scopeRegistries when provided', () => {
+        const customRegistries = {
+          '@mycompany': 'https://registry.mycompany.com/',
+        };
+        const registry = getRegistryForScope('@mycompany', customRegistries);
+        expect(registry).toBe('https://registry.mycompany.com/');
+      });
 
-    it('should return null for unknown scope', () => {
-      expect(getRegistryForScope('@unknown')).toBeNull();
-    });
+      it('should prioritize custom config over hardcoded defaults', () => {
+        const customRegistries = {
+          '@kanyun': 'https://custom-kanyun-registry.com/',
+        };
+        const registry = getRegistryForScope('@kanyun', customRegistries);
+        expect(registry).toBe('https://custom-kanyun-registry.com/');
+      });
 
-    it('should return null for empty string', () => {
-      expect(getRegistryForScope('')).toBeNull();
+      it('should fall back to hardcoded defaults if not in custom config', () => {
+        const customRegistries = {
+          '@other': 'https://other.com/',
+        };
+        const registry = getRegistryForScope('@kanyun', customRegistries);
+        expect(registry).toBe('https://reskill-test.zhenguanyu.com/');
+      });
+
+      it('should return null if scope not found in custom or hardcoded', () => {
+        const customRegistries = {
+          '@other': 'https://other.com/',
+        };
+        const registry = getRegistryForScope('@unknown', customRegistries);
+        expect(registry).toBeNull();
+      });
+
+      it('should handle custom scope without @ prefix', () => {
+        const customRegistries = {
+          '@mycompany': 'https://registry.mycompany.com/',
+        };
+        const registry = getRegistryForScope('mycompany', customRegistries);
+        expect(registry).toBe('https://registry.mycompany.com/');
+      });
+
+      it('should normalize trailing slash in custom registry URL', () => {
+        const customRegistries = {
+          '@mycompany': 'https://registry.mycompany.com',
+        };
+        const registry = getRegistryForScope('@mycompany', customRegistries);
+        expect(registry).toBe('https://registry.mycompany.com/');
+      });
     });
   });
 
@@ -66,8 +118,8 @@ describe('registry-scope', () => {
       expect(PUBLIC_REGISTRY).toBe('https://reskill.info/');
     });
 
-    // 私有 Registry（有 scope）
-    describe('private registry (with scope)', () => {
+    // 私有 Registry（有 scope）- 向后兼容
+    describe('private registry (with scope) - backward compatibility', () => {
       it('should resolve registry from known scope @kanyun', () => {
         const registry = getRegistryUrl('@kanyun');
         expect(registry).toBe('https://reskill-test.zhenguanyu.com/');
@@ -88,6 +140,50 @@ describe('registry-scope', () => {
         expect(() => getRegistryUrl('unknown-org')).toThrow(
           'Unknown scope @unknown-org. No registry configured for this scope.',
         );
+      });
+    });
+
+    // 私有 Registry（有 scope）- 使用自定义 scopeRegistries
+    describe('private registry (with scope) - custom scopeRegistries', () => {
+      it('should resolve custom scope from scopeRegistries', () => {
+        const customRegistries = {
+          '@mycompany': 'https://registry.mycompany.com/',
+        };
+        const url = getRegistryUrl('@mycompany', customRegistries);
+        expect(url).toBe('https://registry.mycompany.com/');
+      });
+
+      it('should prioritize custom config over hardcoded defaults', () => {
+        const customRegistries = {
+          '@kanyun': 'https://custom-kanyun.com/',
+        };
+        const url = getRegistryUrl('@kanyun', customRegistries);
+        expect(url).toBe('https://custom-kanyun.com/');
+      });
+
+      it('should fall back to hardcoded defaults for known scope not in custom', () => {
+        const customRegistries = {
+          '@other': 'https://other.com/',
+        };
+        const url = getRegistryUrl('@kanyun', customRegistries);
+        expect(url).toBe('https://reskill-test.zhenguanyu.com/');
+      });
+
+      it('should throw error for unknown scope not in custom or hardcoded', () => {
+        const customRegistries = {
+          '@other': 'https://other.com/',
+        };
+        expect(() => getRegistryUrl('@unknown', customRegistries)).toThrow(
+          'Unknown scope @unknown. No registry configured for this scope.',
+        );
+      });
+
+      it('should still return public registry when scope is null with custom config', () => {
+        const customRegistries = {
+          '@mycompany': 'https://registry.mycompany.com/',
+        };
+        const url = getRegistryUrl(null, customRegistries);
+        expect(url).toBe('https://reskill.info/');
       });
     });
 

@@ -79,28 +79,46 @@ export function getScopeForRegistry(registry: string): string | null {
 }
 
 /**
+ * Custom scope registries configuration
+ * Maps scope names to registry URLs
+ */
+export type ScopeRegistries = Record<string, string>;
+
+/**
  * Get the registry URL for a given scope (reverse lookup)
  *
  * @param scope - Scope string (with or without @ prefix), e.g., "@kanyun" or "kanyun"
+ * @param customRegistries - Optional custom scope-to-registry mapping (from skills.json)
  * @returns Registry URL (with trailing slash) or null if not found
  *
  * @example
  * getRegistryForScope('@kanyun') // 'https://reskill-test.zhenguanyu.com/'
  * getRegistryForScope('kanyun') // 'https://reskill-test.zhenguanyu.com/'
  * getRegistryForScope('@unknown') // null
+ * getRegistryForScope('@mycompany', { '@mycompany': 'https://my.registry.com/' }) // 'https://my.registry.com/'
  */
-export function getRegistryForScope(scope: string): string | null {
+export function getRegistryForScope(
+  scope: string,
+  customRegistries?: ScopeRegistries,
+): string | null {
   if (!scope) {
     return null;
   }
 
-  // 标准化 scope：确保带 @ 前缀
+  // Normalize scope: ensure @ prefix
   const normalizedScope = scope.startsWith('@') ? scope : `@${scope}`;
 
-  // 遍历 REGISTRY_SCOPE_MAP 找到匹配的 registry
+  // 1. First check custom scopeRegistries (from skills.json)
+  if (customRegistries?.[normalizedScope]) {
+    const url = customRegistries[normalizedScope];
+    // Normalize trailing slash
+    return url.endsWith('/') ? url : `${url}/`;
+  }
+
+  // 2. Fall back to hardcoded defaults
   for (const [registry, registryScope] of Object.entries(REGISTRY_SCOPE_MAP)) {
     if (registryScope === normalizedScope) {
-      // 返回带末尾斜杠的 URL（标准化格式）
+      // Return URL with trailing slash (normalized format)
       return registry.endsWith('/') ? registry : `${registry}/`;
     }
   }
@@ -111,10 +129,11 @@ export function getRegistryForScope(scope: string): string | null {
 /**
  * Get the registry URL for a given scope
  *
- * - 有 scope → 反查私有 Registry（若找不到则抛出错误）
- * - 无 scope (null/undefined/'') → 返回公共 Registry
+ * - With scope → lookup private Registry (throws if not found)
+ * - Without scope (null/undefined/'') → returns public Registry
  *
  * @param scope - Scope string (with or without @ prefix), null, undefined, or empty string
+ * @param customRegistries - Optional custom scope-to-registry mapping (from skills.json)
  * @returns Registry URL (with trailing slash)
  * @throws Error if scope is provided but not found in the registry map
  *
@@ -124,18 +143,22 @@ export function getRegistryForScope(scope: string): string | null {
  * getRegistryUrl(null) // 'https://reskill.info/'
  * getRegistryUrl('') // 'https://reskill.info/'
  * getRegistryUrl('@unknown') // throws Error
+ * getRegistryUrl('@mycompany', { '@mycompany': 'https://my.registry.com/' }) // 'https://my.registry.com/'
  */
-export function getRegistryUrl(scope: string | null | undefined): string {
-  // 无 scope → 返回公共 Registry
+export function getRegistryUrl(
+  scope: string | null | undefined,
+  customRegistries?: ScopeRegistries,
+): string {
+  // No scope → return public Registry
   if (!scope) {
     return PUBLIC_REGISTRY;
   }
 
-  // 有 scope → 反查私有 Registry
-  const registry = getRegistryForScope(scope);
+  // With scope → lookup private Registry
+  const registry = getRegistryForScope(scope, customRegistries);
 
   if (!registry) {
-    // 标准化 scope 用于错误提示
+    // Normalize scope for error message
     const normalizedScope = scope.startsWith('@') ? scope : `@${scope}`;
     throw new Error(
       `Unknown scope ${normalizedScope}. No registry configured for this scope.`,
