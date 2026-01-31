@@ -6,19 +6,80 @@
  */
 
 import { createWriteStream, existsSync, mkdirSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname, isAbsolute, join, normalize, resolve } from 'node:path';
 import { createGunzip } from 'node:zlib';
 import { extract, type Headers } from 'tar-stream';
 
 /**
+ * Validate that a tarball entry path is safe
+ *
+ * Prevents path traversal attacks:
+ * 1. System-level escape: paths like ../../../etc/passwd that escape installDir
+ * 2. Skill-level escape: paths like skill/../other-skill/file that affect other skills
+ *
+ * Design principle: legitimate tarballs never need ".." in their paths.
+ * All files should be under a top-level directory (skill-name/).
+ *
+ * @param installDir - Installation directory path
+ * @param entryName - Entry name from tarball header
+ * @returns true if the path is safe, false otherwise
+ *
+ * @example
+ * isPathSafe('/skills', 'my-skill/SKILL.md')           // true
+ * isPathSafe('/skills', '../../../etc/passwd')         // false (system escape)
+ * isPathSafe('/skills', 'skill/../other/file')         // false (skill escape)
+ * isPathSafe('/skills', '/etc/passwd')                 // false (absolute path)
+ */
+export function isPathSafe(installDir: string, entryName: string): boolean {
+  // Empty path is invalid
+  if (!entryName || entryName.trim() === '') {
+    return false;
+  }
+
+  // Normalize the path to handle redundant separators
+  const normalizedName = normalize(entryName);
+
+  // Reject absolute paths
+  if (isAbsolute(normalizedName)) {
+    return false;
+  }
+
+  // Reject paths that resolve to just "." (the installDir itself)
+  if (normalizedName === '.') {
+    return false;
+  }
+
+  // Reject any path containing ".." component
+  // Legitimate tarballs never need ".." - all files should be under skill-name/
+  // This prevents both system-level escape (../../../etc) and skill-level escape (skill/../other)
+  const parts = entryName.split('/');
+  for (const part of parts) {
+    if (part === '..') {
+      return false;
+    }
+  }
+
+  // Final verification: resolved path must be within installDir
+  const resolvedInstallDir = resolve(installDir);
+  const resolvedEntryPath = resolve(join(installDir, normalizedName));
+
+  // Entry must be within install directory (not equal to it, must be a subdirectory)
+  if (!resolvedEntryPath.startsWith(resolvedInstallDir + '/')) {
+    return false;
+  }
+
+  return true;
+}
+
+/**
  * Extract a gzipped tarball buffer to the installation directory
  *
- * tarball 内部结构应该是:
+ * Expected tarball structure:
  * - skill-name/SKILL.md
  * - skill-name/examples.md
  * - skill-name/scripts/init.sh
  *
- * 解压后目录结构:
+ * Extracted directory structure:
  * - installDir/skill-name/SKILL.md
  * - installDir/skill-name/examples.md
  * - installDir/skill-name/scripts/init.sh
@@ -31,7 +92,7 @@ import { extract, type Headers } from 'tar-stream';
  * // Creates: /path/.claude/skills/planning-with-files/SKILL.md
  */
 export async function extractTarballBuffer(tarball: Buffer, installDir: string): Promise<void> {
-  // 确保安装目录存在
+  // Ensure install directory exists
   if (!existsSync(installDir)) {
     mkdirSync(installDir, { recursive: true });
   }
@@ -40,11 +101,19 @@ export async function extractTarballBuffer(tarball: Buffer, installDir: string):
     const gunzip = createGunzip();
     const extractor = extract();
 
-    // 处理每个文件
+    // Process each entry
     extractor.on('entry', (header: Headers, stream, next) => {
-      const entryPath = join(installDir, header.name);
+      // Security check: validate path is safe (prevents path traversal attacks)
+      if (!isPathSafe(installDir, header.name)) {
+        // Skip suspicious entries silently
+        stream.resume();
+        next();
+        return;
+      }
 
-      // 处理目录
+      const entryPath = join(installDir, normalize(header.name));
+
+      // Handle directory
       if (header.type === 'directory') {
         if (!existsSync(entryPath)) {
           mkdirSync(entryPath, { recursive: true });
@@ -54,20 +123,20 @@ export async function extractTarballBuffer(tarball: Buffer, installDir: string):
         return;
       }
 
-      // 处理文件
+      // Handle file
       if (header.type === 'file') {
-        // 确保父目录存在
+        // Ensure parent directory exists
         const parentDir = dirname(entryPath);
         if (!existsSync(parentDir)) {
           mkdirSync(parentDir, { recursive: true });
         }
 
-        // 创建写入流
+        // Create write stream
         const writeStream = createWriteStream(entryPath, {
           mode: header.mode,
         });
 
-        // 写入文件内容
+        // Write file content
         stream.pipe(writeStream);
 
         writeStream.on('finish', () => {
@@ -81,7 +150,7 @@ export async function extractTarballBuffer(tarball: Buffer, installDir: string):
         return;
       }
 
-      // 跳过其他类型（如符号链接）
+      // Skip other types (e.g., symlinks)
       stream.resume();
       next();
     });
@@ -98,7 +167,7 @@ export async function extractTarballBuffer(tarball: Buffer, installDir: string):
       reject(new Error(`Failed to decompress tarball: ${err.message}`));
     });
 
-    // 开始解压
+    // Start extraction
     gunzip.pipe(extractor);
     gunzip.end(tarball);
   });
@@ -107,7 +176,7 @@ export async function extractTarballBuffer(tarball: Buffer, installDir: string):
 /**
  * Get the top-level directory name from a tarball
  *
- * 用于验证 tarball 结构或获取 skill 名称
+ * Used to validate tarball structure or get skill name
  *
  * @param tarball - Gzipped tarball buffer
  * @returns Top-level directory name or null if not found
@@ -124,7 +193,7 @@ export async function getTarballTopDir(tarball: Buffer): Promise<string | null> 
 
     extractor.on('entry', (header: Headers, stream, next) => {
       if (!topDir && header.name) {
-        // 从第一个 entry 获取顶层目录
+        // Get top-level directory from first entry
         const parts = header.name.split('/');
         if (parts.length > 0 && parts[0]) {
           topDir = parts[0];

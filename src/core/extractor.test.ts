@@ -10,21 +10,20 @@ import * as path from 'node:path';
 import * as zlib from 'node:zlib';
 import { pack } from 'tar-stream';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { extractTarballBuffer } from './extractor.js';
+import { extractTarballBuffer, isPathSafe } from './extractor.js';
 
 describe('extractor', () => {
   let tempDir: string;
 
-  // 辅助函数：创建临时目录
+  // Helper: create temporary directory
   function createTempDir(): string {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'reskill-extractor-test-'));
     return fs.realpathSync(dir);
   }
 
-  // 辅助函数：创建 mock tarball
-  function createMockTarball(
-    topDir: string,
-    files: Array<{ name: string; content: string; mode?: number }>,
+  // Helper: create mock tarball with custom entry names (for security tests)
+  function createMockTarballRaw(
+    entries: Array<{ name: string; content: string; mode?: number }>,
   ): Buffer {
     return new Promise<Buffer>((resolve, reject) => {
       const chunks: Buffer[] = [];
@@ -37,15 +36,13 @@ describe('extractor', () => {
 
       tarPack.pipe(gzip);
 
-      for (const file of files) {
-        const entryName = `${topDir}/${file.name}`;
-        const content = Buffer.from(file.content);
-
+      for (const entry of entries) {
+        const content = Buffer.from(entry.content);
         tarPack.entry(
           {
-            name: entryName,
+            name: entry.name,
             size: content.length,
-            mode: file.mode || 0o644,
+            mode: entry.mode || 0o644,
           },
           content,
         );
@@ -55,7 +52,20 @@ describe('extractor', () => {
     }) as unknown as Buffer;
   }
 
-  // 辅助函数：创建空 tarball
+  // Helper: create mock tarball with top directory prefix
+  function createMockTarball(
+    topDir: string,
+    files: Array<{ name: string; content: string; mode?: number }>,
+  ): Buffer {
+    const entries = files.map((file) => ({
+      name: `${topDir}/${file.name}`,
+      content: file.content,
+      mode: file.mode,
+    }));
+    return createMockTarballRaw(entries);
+  }
+
+  // Helper: create empty tarball
   function createEmptyTarball(): Buffer {
     return new Promise<Buffer>((resolve, reject) => {
       const chunks: Buffer[] = [];
@@ -91,7 +101,7 @@ describe('extractor', () => {
       expect(fs.existsSync(path.join(tempDir, 'my-skill/SKILL.md'))).toBe(true);
       expect(fs.existsSync(path.join(tempDir, 'my-skill/examples.md'))).toBe(true);
 
-      // 验证内容
+      // Verify content
       const content = fs.readFileSync(path.join(tempDir, 'my-skill/SKILL.md'), 'utf-8');
       expect(content).toBe('# My Skill');
     });
@@ -111,7 +121,7 @@ describe('extractor', () => {
     });
 
     it('should preserve file permissions on Unix', async () => {
-      // 只在 Unix 系统上测试权限
+      // Only test permissions on Unix systems
       if (process.platform === 'win32') {
         return;
       }
@@ -123,17 +133,17 @@ describe('extractor', () => {
       await extractTarballBuffer(tarball, tempDir);
 
       const stat = fs.statSync(path.join(tempDir, 'my-skill/scripts/init.sh'));
-      // 检查是否有执行权限
+      // Check for execute permission
       expect(stat.mode & 0o111).toBeGreaterThan(0);
     });
 
     it('should handle empty tarball gracefully', async () => {
       const emptyTarball = await createEmptyTarball();
 
-      // 空 tarball 应该成功解压，只是没有文件
+      // Empty tarball should extract successfully, just no files
       await extractTarballBuffer(emptyTarball, tempDir);
 
-      // tempDir 应该存在但为空（或只有解压时创建的目录）
+      // tempDir should exist but be empty
       expect(fs.existsSync(tempDir)).toBe(true);
     });
 
@@ -181,6 +191,169 @@ describe('extractor', () => {
 
       expect(fs.existsSync(newInstallDir)).toBe(true);
       expect(fs.existsSync(path.join(newInstallDir, 'skill/SKILL.md'))).toBe(true);
+    });
+  });
+
+  // ==========================================================================
+  // Path Traversal Protection Tests
+  // ==========================================================================
+
+  describe('isPathSafe', () => {
+    const installDir = '/home/user/.reskill/skills';
+
+    describe('should allow safe paths', () => {
+      it('allows normal skill paths', () => {
+        expect(isPathSafe(installDir, 'my-skill/SKILL.md')).toBe(true);
+        expect(isPathSafe(installDir, 'my-skill/scripts/init.sh')).toBe(true);
+        expect(isPathSafe(installDir, 'my-skill/a/b/c/deep.txt')).toBe(true);
+      });
+
+      it('allows paths with ./ prefix', () => {
+        expect(isPathSafe(installDir, './my-skill/SKILL.md')).toBe(true);
+      });
+
+      it('allows paths with special characters', () => {
+        expect(isPathSafe(installDir, 'my-skill/file with spaces.md')).toBe(true);
+        expect(isPathSafe(installDir, 'my-skill/file-name.md')).toBe(true);
+        expect(isPathSafe(installDir, 'my-skill/file_name.md')).toBe(true);
+      });
+    });
+
+    describe('should block system-level escape (escaping installDir)', () => {
+      it('blocks paths starting with ..', () => {
+        expect(isPathSafe(installDir, '../etc/passwd')).toBe(false);
+        expect(isPathSafe(installDir, '../../etc/passwd')).toBe(false);
+        expect(isPathSafe(installDir, '../../../etc/passwd')).toBe(false);
+      });
+
+      it('blocks absolute paths', () => {
+        expect(isPathSafe(installDir, '/etc/passwd')).toBe(false);
+        expect(isPathSafe(installDir, '/tmp/malicious')).toBe(false);
+      });
+
+      it('blocks paths that normalize to parent directory', () => {
+        // These paths try to escape using .. after initial directory
+        expect(isPathSafe(installDir, 'skill/../../etc/passwd')).toBe(false);
+        expect(isPathSafe(installDir, 'a/b/../../../etc/passwd')).toBe(false);
+      });
+    });
+
+    describe('should block any path containing ".."', () => {
+      // Design principle: legitimate tarballs never need ".." in their paths
+      // All files should be directly under skill-name/ without path manipulation
+
+      it('blocks paths that escape to sibling directories', () => {
+        // skill/../other-skill/file would write to other-skill directory
+        expect(isPathSafe(installDir, 'skill/../other-skill/SKILL.md')).toBe(false);
+      });
+
+      it('blocks paths with multiple .. that escape top-level', () => {
+        // a/b/../../other means: go into a, then b, then up twice (escapes a)
+        expect(isPathSafe(installDir, 'a/b/../../other/file')).toBe(false);
+      });
+
+      it('blocks paths with .. even if they stay within skill directory', () => {
+        // For simplicity and security, we reject ALL paths containing ".."
+        // Legitimate tarballs don't need ".." - they should use direct paths
+        expect(isPathSafe(installDir, 'skill/a/../b/file.md')).toBe(false);
+        expect(isPathSafe(installDir, 'skill/a/b/../c/file.md')).toBe(false);
+      });
+    });
+
+    describe('edge cases', () => {
+      it('blocks empty path', () => {
+        expect(isPathSafe(installDir, '')).toBe(false);
+      });
+
+      it('blocks whitespace-only path', () => {
+        expect(isPathSafe(installDir, '   ')).toBe(false);
+      });
+
+      it('blocks path that resolves to installDir itself', () => {
+        expect(isPathSafe(installDir, '.')).toBe(false);
+        expect(isPathSafe(installDir, './')).toBe(false);
+      });
+
+      it('allows Windows-style paths on Unix (backslash is not a separator)', () => {
+        // On Unix, backslashes are not path separators, so '..\\..\\etc\\passwd'
+        // is a valid filename (creates file named '..\\..\\etc\\passwd' in installDir)
+        // This is safe because it doesn't actually traverse directories
+        expect(isPathSafe(installDir, 'skill/..\\..\\etc\\passwd')).toBe(true);
+      });
+
+      it('allows unusual but safe filenames', () => {
+        // Filenames with backslashes that don't start with '..' are allowed on Unix
+        expect(isPathSafe(installDir, 'skill/file\\name.txt')).toBe(true);
+      });
+    });
+  });
+
+  describe('extractTarballBuffer - path traversal protection', () => {
+    it('should skip entries with system-level path traversal', async () => {
+      // Create tarball with malicious path
+      const tarball = await createMockTarballRaw([
+        { name: 'good-skill/SKILL.md', content: '# Good Skill' },
+        { name: '../../../tmp/malicious.txt', content: 'malicious content' },
+      ]);
+
+      await extractTarballBuffer(tarball, tempDir);
+
+      // Good file should be extracted
+      expect(fs.existsSync(path.join(tempDir, 'good-skill/SKILL.md'))).toBe(true);
+
+      // Malicious file should NOT be extracted anywhere
+      expect(fs.existsSync('/tmp/malicious.txt')).toBe(false);
+      expect(fs.existsSync(path.join(tempDir, '../../../tmp/malicious.txt'))).toBe(false);
+    });
+
+    it('should skip entries with skill-level path traversal', async () => {
+      // Create tarball that tries to overwrite another skill
+      const tarball = await createMockTarballRaw([
+        { name: 'malicious-skill/SKILL.md', content: '# Malicious' },
+        { name: 'malicious-skill/../trusted-skill/SKILL.md', content: '# Overwritten!' },
+      ]);
+
+      await extractTarballBuffer(tarball, tempDir);
+
+      // The malicious-skill should be created
+      expect(fs.existsSync(path.join(tempDir, 'malicious-skill/SKILL.md'))).toBe(true);
+
+      // But trusted-skill should NOT be created (the malicious entry was skipped)
+      expect(fs.existsSync(path.join(tempDir, 'trusted-skill/SKILL.md'))).toBe(false);
+    });
+
+    it('should skip entries with absolute paths', async () => {
+      const tarball = await createMockTarballRaw([
+        { name: 'good-skill/SKILL.md', content: '# Good' },
+        { name: '/etc/passwd', content: 'root:x:0:0' },
+      ]);
+
+      await extractTarballBuffer(tarball, tempDir);
+
+      // Good file should be extracted
+      expect(fs.existsSync(path.join(tempDir, 'good-skill/SKILL.md'))).toBe(true);
+
+      // Absolute path entry should be skipped
+      // (and not create file at installDir/etc/passwd either)
+    });
+
+    it('should extract normal tarballs without issues', async () => {
+      // Normal tarball with nested structure
+      const tarball = await createMockTarball('my-skill', [
+        { name: 'SKILL.md', content: '# My Skill' },
+        { name: 'scripts/init.sh', content: '#!/bin/bash\necho hello' },
+        { name: 'examples/basic.md', content: '# Basic Example' },
+      ]);
+
+      await extractTarballBuffer(tarball, tempDir);
+
+      expect(fs.existsSync(path.join(tempDir, 'my-skill/SKILL.md'))).toBe(true);
+      expect(fs.existsSync(path.join(tempDir, 'my-skill/scripts/init.sh'))).toBe(true);
+      expect(fs.existsSync(path.join(tempDir, 'my-skill/examples/basic.md'))).toBe(true);
+
+      // Verify content integrity
+      const content = fs.readFileSync(path.join(tempDir, 'my-skill/SKILL.md'), 'utf-8');
+      expect(content).toBe('# My Skill');
     });
   });
 });
