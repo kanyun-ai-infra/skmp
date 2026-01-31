@@ -7,8 +7,32 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import * as zlib from 'node:zlib';
+import { extract } from 'tar-stream';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { RegistryClient, RegistryError } from './registry-client.js';
+
+// 辅助函数：解压 tarball 并返回文件名列表
+async function extractTarballEntries(tarball: Buffer): Promise<string[]> {
+  return new Promise((resolve, reject) => {
+    const entries: string[] = [];
+    const gunzip = zlib.createGunzip();
+    const extractor = extract();
+
+    extractor.on('entry', (header, stream, next) => {
+      entries.push(header.name);
+      stream.on('end', next);
+      stream.resume();
+    });
+
+    extractor.on('finish', () => resolve(entries));
+    extractor.on('error', reject);
+    gunzip.on('error', reject);
+
+    gunzip.pipe(extractor);
+    gunzip.end(tarball);
+  });
+}
 
 // Mock fetch globally
 const mockFetch = vi.fn();
@@ -313,6 +337,56 @@ describe('RegistryClient', () => {
       // Tarball should contain the file content (compressed)
       expect(tarball.length).toBeGreaterThan(0);
     });
+
+    // ========================================================================
+    // shortName parameter tests (Step 2.4)
+    // ========================================================================
+
+    it('should use short name as top-level directory when shortName provided', async () => {
+      fs.writeFileSync(path.join(tempDir, 'SKILL.md'), '# Test Skill');
+      fs.writeFileSync(path.join(tempDir, 'examples.md'), '# Examples');
+
+      const tarball = await client.createTarball(tempDir, ['SKILL.md', 'examples.md'], 'planning-with-files');
+      const entries = await extractTarballEntries(tarball);
+
+      expect(entries).toContain('planning-with-files/SKILL.md');
+      expect(entries).toContain('planning-with-files/examples.md');
+    });
+
+    it('should not include scope in tarball paths', async () => {
+      fs.writeFileSync(path.join(tempDir, 'SKILL.md'), '# Test Skill');
+
+      const tarball = await client.createTarball(tempDir, ['SKILL.md'], 'my-skill');
+      const entries = await extractTarballEntries(tarball);
+
+      // 不应包含任何带 @ 的路径
+      expect(entries.some(e => e.includes('@'))).toBe(false);
+      expect(entries).toContain('my-skill/SKILL.md');
+    });
+
+    it('should preserve nested directory structure with shortName', async () => {
+      // 创建嵌套目录
+      fs.mkdirSync(path.join(tempDir, 'scripts'), { recursive: true });
+      fs.writeFileSync(path.join(tempDir, 'SKILL.md'), '# Test Skill');
+      fs.writeFileSync(path.join(tempDir, 'scripts', 'init.sh'), '#!/bin/bash');
+
+      const tarball = await client.createTarball(tempDir, ['SKILL.md', 'scripts/init.sh'], 'my-skill');
+      const entries = await extractTarballEntries(tarball);
+
+      expect(entries).toContain('my-skill/SKILL.md');
+      expect(entries).toContain('my-skill/scripts/init.sh');
+    });
+
+    it('should work without shortName for backward compatibility', async () => {
+      fs.writeFileSync(path.join(tempDir, 'SKILL.md'), '# Test Skill');
+
+      // 不传 shortName 参数
+      const tarball = await client.createTarball(tempDir, ['SKILL.md']);
+      const entries = await extractTarballEntries(tarball);
+
+      // 应该使用扁平结构（无顶层目录）
+      expect(entries).toContain('SKILL.md');
+    });
   });
 
   // ============================================================================
@@ -563,6 +637,311 @@ describe('RegistryClient', () => {
       const headers = mockFetch.mock.calls[0][1].headers;
       expect(headers['User-Agent']).toBe('reskill/1.0');
       expect(headers['X-Client-Type']).toBe('cli');
+    });
+  });
+
+  // ============================================================================
+  // resolveVersion tests (Step 3.3)
+  // ============================================================================
+
+  describe('resolveVersion', () => {
+    beforeEach(() => {
+      client = new RegistryClient({ registry: testRegistry, token: testToken });
+    });
+
+    it('should resolve latest tag to actual version', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            'dist-tags': { latest: '2.4.5', beta: '3.0.0-beta.1' },
+          }),
+      });
+
+      const version = await client.resolveVersion('@kanyun/test-skill', 'latest');
+      expect(version).toBe('2.4.5');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        `${testRegistry}/api/skills/${encodeURIComponent('@kanyun/test-skill')}`,
+        expect.objectContaining({ method: 'GET' }),
+      );
+    });
+
+    it('should resolve beta tag to actual version', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            'dist-tags': { latest: '2.4.5', beta: '3.0.0-beta.1' },
+          }),
+      });
+
+      const version = await client.resolveVersion('@kanyun/test-skill', 'beta');
+      expect(version).toBe('3.0.0-beta.1');
+    });
+
+    it('should return semver version as-is', async () => {
+      // 如果传入的是 semver 版本号，直接返回，不发请求
+      const version = await client.resolveVersion('@kanyun/test-skill', '2.4.5');
+      expect(version).toBe('2.4.5');
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    it('should throw error for non-existent tag', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            'dist-tags': { latest: '2.4.5' },
+          }),
+      });
+
+      await expect(client.resolveVersion('@kanyun/test-skill', 'nonexistent')).rejects.toThrow(
+        "Tag 'nonexistent' not found",
+      );
+    });
+
+    it('should throw error for non-existent skill', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        json: () => Promise.resolve({ error: 'Skill not found' }),
+      });
+
+      await expect(client.resolveVersion('@kanyun/non-existent', 'latest')).rejects.toThrow(
+        'Skill not found',
+      );
+    });
+
+    it('should default to latest when no version specified', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            'dist-tags': { latest: '1.0.0' },
+          }),
+      });
+
+      const version = await client.resolveVersion('@kanyun/test-skill');
+      expect(version).toBe('1.0.0');
+    });
+
+    it('should handle non-JSON error response gracefully', async () => {
+      // Simulate 502 Bad Gateway with HTML response
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 502,
+        statusText: 'Bad Gateway',
+        json: () => Promise.reject(new SyntaxError('Unexpected token < in JSON')),
+      });
+
+      await expect(client.resolveVersion('@kanyun/test-skill', 'latest')).rejects.toThrow(
+        'Failed to fetch skill metadata: 502',
+      );
+    });
+  });
+
+  // ============================================================================
+  // downloadSkill tests (Step 3.3)
+  // ============================================================================
+
+  describe('downloadSkill', () => {
+    beforeEach(() => {
+      client = new RegistryClient({ registry: testRegistry, token: testToken });
+    });
+
+    it('should download tarball successfully', async () => {
+      const mockTarballContent = Buffer.from('mock tarball content');
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({
+          'x-integrity': 'sha256-mockhash123',
+          'content-type': 'application/gzip',
+        }),
+        arrayBuffer: () => Promise.resolve(mockTarballContent.buffer),
+      });
+
+      const result = await client.downloadSkill('@kanyun/test-skill', '1.0.0');
+
+      expect(result.tarball).toBeInstanceOf(Buffer);
+      expect(result.integrity).toBe('sha256-mockhash123');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        `${testRegistry}/api/skills/${encodeURIComponent('@kanyun/test-skill')}/versions/1.0.0/download`,
+        expect.objectContaining({
+          method: 'GET',
+          headers: expect.objectContaining({
+            Authorization: `Bearer ${testToken}`,
+          }),
+        }),
+      );
+    });
+
+    it('should throw error for non-existent skill', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        json: () => Promise.resolve({ error: 'Skill not found' }),
+      });
+
+      await expect(client.downloadSkill('@kanyun/non-existent', '1.0.0')).rejects.toThrow(
+        'Skill not found',
+      );
+    });
+
+    it('should throw error for non-existent version', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        json: () => Promise.resolve({ error: 'Version not found' }),
+      });
+
+      await expect(client.downloadSkill('@kanyun/test-skill', '99.0.0')).rejects.toThrow(
+        'Version not found',
+      );
+    });
+
+    it('should handle public registry skill (no scope)', async () => {
+      const mockTarballContent = Buffer.from('mock tarball content');
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({
+          'x-integrity': 'sha256-hash',
+        }),
+        arrayBuffer: () => Promise.resolve(mockTarballContent.buffer),
+      });
+
+      await client.downloadSkill('public-skill', '1.0.0');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        `${testRegistry}/api/skills/public-skill/versions/1.0.0/download`,
+        expect.anything(),
+      );
+    });
+
+    it('should handle non-JSON error response (e.g., HTML error page)', async () => {
+      // Simulate 502 Bad Gateway with HTML response
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 502,
+        statusText: 'Bad Gateway',
+        json: () => Promise.reject(new SyntaxError('Unexpected token < in JSON')),
+      });
+
+      await expect(client.downloadSkill('@kanyun/test-skill', '1.0.0')).rejects.toThrow(
+        'Download failed: 502',
+      );
+    });
+
+    it('should handle 503 Service Unavailable with HTML response', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 503,
+        statusText: 'Service Unavailable',
+        json: () => Promise.reject(new SyntaxError('Unexpected token < in JSON')),
+      });
+
+      await expect(client.downloadSkill('@kanyun/test-skill', '1.0.0')).rejects.toThrow(
+        'Download failed: 503',
+      );
+    });
+
+    it('should prefer JSON error message when available', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        json: () => Promise.resolve({ error: 'Skill not found in registry' }),
+      });
+
+      await expect(client.downloadSkill('@kanyun/test-skill', '1.0.0')).rejects.toThrow(
+        'Skill not found in registry',
+      );
+    });
+  });
+
+  // ============================================================================
+  // verifyIntegrity tests (Step 3.3)
+  // ============================================================================
+
+  describe('verifyIntegrity', () => {
+    it('should return true for matching integrity', () => {
+      const content = Buffer.from('test content');
+      // 计算实际的 sha256 hash
+      const crypto = require('node:crypto');
+      const hash = crypto.createHash('sha256').update(content).digest('base64');
+      const expectedIntegrity = `sha256-${hash}`;
+
+      const result = RegistryClient.verifyIntegrity(content, expectedIntegrity);
+      expect(result).toBe(true);
+    });
+
+    it('should return false for mismatched integrity', () => {
+      const content = Buffer.from('test content');
+      const wrongIntegrity = 'sha256-wronghash';
+
+      const result = RegistryClient.verifyIntegrity(content, wrongIntegrity);
+      expect(result).toBe(false);
+    });
+
+    it('should handle empty content', () => {
+      const content = Buffer.from('');
+      const crypto = require('node:crypto');
+      const hash = crypto.createHash('sha256').update(content).digest('base64');
+      const expectedIntegrity = `sha256-${hash}`;
+
+      const result = RegistryClient.verifyIntegrity(content, expectedIntegrity);
+      expect(result).toBe(true);
+    });
+
+    it('should throw error for invalid integrity format', () => {
+      const content = Buffer.from('test content');
+
+      // 没有连字符分隔的格式是无效的
+      expect(() => RegistryClient.verifyIntegrity(content, 'nohyphen')).toThrow(
+        'Invalid integrity format',
+      );
+    });
+
+    it('should throw error for unsupported algorithm', () => {
+      const content = Buffer.from('test content');
+
+      expect(() => RegistryClient.verifyIntegrity(content, 'md5-hash')).toThrow(
+        'Unsupported integrity algorithm',
+      );
+    });
+  });
+
+  // ============================================================================
+  // calculateIntegrity tests (Step 3.3)
+  // ============================================================================
+
+  describe('calculateIntegrity', () => {
+    it('should calculate sha256 integrity for content', () => {
+      const content = Buffer.from('test content');
+      const integrity = RegistryClient.calculateIntegrity(content);
+
+      expect(integrity).toMatch(/^sha256-[A-Za-z0-9+/]+=*$/);
+    });
+
+    it('should return consistent result for same content', () => {
+      const content = Buffer.from('consistent content');
+
+      const integrity1 = RegistryClient.calculateIntegrity(content);
+      const integrity2 = RegistryClient.calculateIntegrity(content);
+
+      expect(integrity1).toBe(integrity2);
+    });
+
+    it('should return different result for different content', () => {
+      const content1 = Buffer.from('content 1');
+      const content2 = Buffer.from('content 2');
+
+      const integrity1 = RegistryClient.calculateIntegrity(content1);
+      const integrity2 = RegistryClient.calculateIntegrity(content2);
+
+      expect(integrity1).not.toBe(integrity2);
     });
   });
 });

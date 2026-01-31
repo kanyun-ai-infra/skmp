@@ -4,11 +4,13 @@
  * Handles authentication, publishing, and downloading skills from the registry.
  */
 
+import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as zlib from 'node:zlib';
 import { pack } from 'tar-stream';
 import type { PublishPayload } from './publisher.js';
+import { getShortName } from '../utils/registry-scope.js';
 
 // ============================================================================
 // Types
@@ -71,6 +73,18 @@ export interface WhoamiResponse {
   user?: {
     id: string;
   };
+}
+
+export interface SkillMetadataResponse {
+  name: string;
+  'dist-tags': Record<string, string>;
+  versions?: Record<string, unknown>;
+  error?: string;
+}
+
+export interface DownloadResult {
+  tarball: Buffer;
+  integrity: string;
 }
 
 export class RegistryError extends Error {
@@ -166,8 +180,13 @@ export class RegistryClient {
 
   /**
    * Create tarball from skill files
+   *
+   * @param skillPath - Path to the skill directory
+   * @param files - List of relative file paths to include
+   * @param shortName - Optional: if provided, use as top-level directory in tarball
+   *                    (e.g., 'my-skill' -> 'my-skill/SKILL.md')
    */
-  async createTarball(skillPath: string, files: string[]): Promise<Buffer> {
+  async createTarball(skillPath: string, files: string[], shortName?: string): Promise<Buffer> {
     return new Promise((resolve, reject) => {
       const chunks: Buffer[] = [];
       const tarPack = pack();
@@ -188,9 +207,12 @@ export class RegistryClient {
           const content = fs.readFileSync(filePath);
           const stat = fs.statSync(filePath);
 
+          // 如果提供了 shortName，则在路径前添加顶层目录
+          const entryName = shortName ? `${shortName}/${file}` : file;
+
           tarPack.entry(
             {
-              name: file,
+              name: entryName,
               size: content.length,
               mode: stat.mode,
               mtime: stat.mtime,
@@ -204,6 +226,171 @@ export class RegistryClient {
     });
   }
 
+  // ============================================================================
+  // Download Methods (Step 3.3)
+  // ============================================================================
+
+  /**
+   * Resolve a tag (like "latest" or "beta") to an actual version number
+   *
+   * @param skillName - Full skill name (e.g., "@kanyun/test-skill" or "public-skill")
+   * @param tagOrVersion - Tag name or semver version (defaults to "latest")
+   * @returns Resolved version number
+   * @throws RegistryError if skill or tag not found
+   *
+   * @example
+   * await client.resolveVersion('@kanyun/test-skill', 'latest') // '2.4.5'
+   * await client.resolveVersion('@kanyun/test-skill', '2.4.5') // '2.4.5' (直接返回)
+   */
+  async resolveVersion(skillName: string, tagOrVersion?: string): Promise<string> {
+    const version = tagOrVersion || 'latest';
+
+    // 如果是 semver 版本号，直接返回
+    if (/^\d+\.\d+\.\d+/.test(version)) {
+      return version;
+    }
+
+    // 否则视为 tag，需要查询 dist-tags
+    const url = `${this.config.registry}/api/skills/${encodeURIComponent(skillName)}`;
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: this.getAuthHeaders(),
+    });
+
+    if (!response.ok) {
+      let errorMessage = `Failed to fetch skill metadata: ${response.status}`;
+      try {
+        const data = (await response.json()) as { error?: string };
+        if (data.error) {
+          errorMessage = data.error;
+        }
+      } catch {
+        // Ignore JSON parse errors (e.g., HTML error pages)
+      }
+      throw new RegistryError(errorMessage, response.status);
+    }
+
+    // API 返回格式: { success: true, data: { dist_tags: [{ tag, version }] } }
+    const responseData = (await response.json()) as {
+      success?: boolean;
+      data?: {
+        dist_tags?: Array<{ tag: string; version: string }>;
+      };
+      // 兼容 npm 风格的 dist-tags
+      'dist-tags'?: Record<string, string>;
+    };
+
+    // 优先使用 npm 风格的 dist-tags（如果存在）
+    if (responseData['dist-tags']) {
+      const resolvedVersion = responseData['dist-tags'][version];
+      if (resolvedVersion) {
+        return resolvedVersion;
+      }
+    }
+
+    // 使用 reskill-app 的 dist_tags 数组格式
+    const distTags = responseData.data?.dist_tags;
+    if (distTags && Array.isArray(distTags)) {
+      const tagEntry = distTags.find((t) => t.tag === version);
+      if (tagEntry) {
+        return tagEntry.version;
+      }
+    }
+
+    throw new RegistryError(`Tag '${version}' not found for skill ${skillName}`);
+  }
+
+  /**
+   * Download a skill tarball from the registry
+   *
+   * @param skillName - Full skill name (e.g., "@kanyun/test-skill" or "public-skill")
+   * @param version - Version number to download
+   * @returns Downloaded tarball and its integrity hash
+   * @throws RegistryError if skill or version not found
+   *
+   * @example
+   * const { tarball, integrity } = await client.downloadSkill('@kanyun/test-skill', '1.0.0');
+   */
+  async downloadSkill(skillName: string, version: string): Promise<DownloadResult> {
+    const url = `${this.config.registry}/api/skills/${encodeURIComponent(skillName)}/versions/${version}/download`;
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: this.getAuthHeaders(),
+    });
+
+    if (!response.ok) {
+      let errorMessage = `Download failed: ${response.status}`;
+      try {
+        const data = (await response.json()) as { error?: string };
+        if (data.error) {
+          errorMessage = data.error;
+        }
+      } catch {
+        // Ignore JSON parse errors (e.g., HTML error pages)
+      }
+      throw new RegistryError(errorMessage, response.status);
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+    const tarball = Buffer.from(arrayBuffer);
+    const integrity = response.headers.get('x-integrity') || '';
+
+    return { tarball, integrity };
+  }
+
+  // ============================================================================
+  // Integrity Methods (Step 3.3)
+  // ============================================================================
+
+  /**
+   * Calculate SHA256 integrity hash for content
+   *
+   * @param content - Content buffer to hash
+   * @returns Integrity string in format "sha256-{base64hash}"
+   *
+   * @example
+   * RegistryClient.calculateIntegrity(buffer) // 'sha256-abc123...'
+   */
+  static calculateIntegrity(content: Buffer): string {
+    const hash = crypto.createHash('sha256').update(content).digest('base64');
+    return `sha256-${hash}`;
+  }
+
+  /**
+   * Verify content matches expected integrity hash
+   *
+   * @param content - Content buffer to verify
+   * @param expectedIntegrity - Expected integrity string (e.g., "sha256-{hash}")
+   * @returns true if integrity matches, false otherwise
+   * @throws Error if integrity format is invalid or algorithm is unsupported
+   *
+   * @example
+   * RegistryClient.verifyIntegrity(buffer, 'sha256-abc123...') // true or false
+   */
+  static verifyIntegrity(content: Buffer, expectedIntegrity: string): boolean {
+    // 解析 integrity 格式: algorithm-hash
+    const match = expectedIntegrity.match(/^(\w+)-(.+)$/);
+    if (!match) {
+      throw new Error(`Invalid integrity format: ${expectedIntegrity}`);
+    }
+
+    const [, algorithm, expectedHash] = match;
+
+    // 只支持 sha256 和 sha512
+    if (algorithm !== 'sha256' && algorithm !== 'sha512') {
+      throw new Error(`Unsupported integrity algorithm: ${algorithm}`);
+    }
+
+    const actualHash = crypto.createHash(algorithm).update(content).digest('base64');
+    return actualHash === expectedHash;
+  }
+
+  // ============================================================================
+  // Publish Methods
+  // ============================================================================
+
   /**
    * Publish a skill to the registry
    */
@@ -215,8 +402,11 @@ export class RegistryClient {
   ): Promise<PublishResponse> {
     const url = `${this.config.registry}/api/skills/publish`;
 
-    // Create tarball
-    const tarball = await this.createTarball(skillPath, payload.files);
+    // 提取短名称作为 tarball 顶层目录（不含 scope 前缀）
+    const shortName = getShortName(skillName);
+
+    // Create tarball with short name as top-level directory
+    const tarball = await this.createTarball(skillPath, payload.files, shortName);
 
     // Build FormData
     const formData = new FormData();

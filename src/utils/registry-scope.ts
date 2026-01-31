@@ -6,6 +6,12 @@
  */
 
 /**
+ * 公共 Registry URL
+ * 用于无 scope 的 skill 安装
+ */
+export const PUBLIC_REGISTRY = 'https://reskill.info/';
+
+/**
  * Hardcoded registry to scope mapping
  * TODO: Replace with dynamic fetching from /api/registry/info
  */
@@ -26,6 +32,21 @@ export interface ParsedSkillName {
   /** Short name without scope, e.g., "planning-with-files" */
   name: string;
   /** Full name as provided, e.g., "@kanyun/planning-with-files" */
+  fullName: string;
+}
+
+/**
+ * Parsed skill identifier result (with version)
+ * 用于 install 命令解析 skill 标识
+ */
+export interface ParsedSkillIdentifier {
+  /** Scope including @ prefix, e.g., "@kanyun"。公共 Registry 时为 null */
+  scope: string | null;
+  /** Short name without scope, e.g., "planning-with-files" */
+  name: string;
+  /** Version or tag, e.g., "2.4.5" or "latest"。未指定时为 undefined */
+  version: string | undefined;
+  /** Full name without version, e.g., "@kanyun/planning-with-files" */
   fullName: string;
 }
 
@@ -55,6 +76,96 @@ export function getScopeForRegistry(registry: string): string | null {
     : `${registry}/`;
 
   return REGISTRY_SCOPE_MAP[normalized] || null;
+}
+
+/**
+ * Custom scope registries configuration
+ * Maps scope names to registry URLs
+ */
+export type ScopeRegistries = Record<string, string>;
+
+/**
+ * Get the registry URL for a given scope (reverse lookup)
+ *
+ * @param scope - Scope string (with or without @ prefix), e.g., "@kanyun" or "kanyun"
+ * @param customRegistries - Optional custom scope-to-registry mapping (from skills.json)
+ * @returns Registry URL (with trailing slash) or null if not found
+ *
+ * @example
+ * getRegistryForScope('@kanyun') // 'https://reskill-test.zhenguanyu.com/'
+ * getRegistryForScope('kanyun') // 'https://reskill-test.zhenguanyu.com/'
+ * getRegistryForScope('@unknown') // null
+ * getRegistryForScope('@mycompany', { '@mycompany': 'https://my.registry.com/' }) // 'https://my.registry.com/'
+ */
+export function getRegistryForScope(
+  scope: string,
+  customRegistries?: ScopeRegistries,
+): string | null {
+  if (!scope) {
+    return null;
+  }
+
+  // Normalize scope: ensure @ prefix
+  const normalizedScope = scope.startsWith('@') ? scope : `@${scope}`;
+
+  // 1. First check custom scopeRegistries (from skills.json)
+  if (customRegistries?.[normalizedScope]) {
+    const url = customRegistries[normalizedScope];
+    // Normalize trailing slash
+    return url.endsWith('/') ? url : `${url}/`;
+  }
+
+  // 2. Fall back to hardcoded defaults
+  for (const [registry, registryScope] of Object.entries(REGISTRY_SCOPE_MAP)) {
+    if (registryScope === normalizedScope) {
+      // Return URL with trailing slash (normalized format)
+      return registry.endsWith('/') ? registry : `${registry}/`;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Get the registry URL for a given scope
+ *
+ * - With scope → lookup private Registry (throws if not found)
+ * - Without scope (null/undefined/'') → returns public Registry
+ *
+ * @param scope - Scope string (with or without @ prefix), null, undefined, or empty string
+ * @param customRegistries - Optional custom scope-to-registry mapping (from skills.json)
+ * @returns Registry URL (with trailing slash)
+ * @throws Error if scope is provided but not found in the registry map
+ *
+ * @example
+ * getRegistryUrl('@kanyun') // 'https://reskill-test.zhenguanyu.com/'
+ * getRegistryUrl('kanyun') // 'https://reskill-test.zhenguanyu.com/'
+ * getRegistryUrl(null) // 'https://reskill.info/'
+ * getRegistryUrl('') // 'https://reskill.info/'
+ * getRegistryUrl('@unknown') // throws Error
+ * getRegistryUrl('@mycompany', { '@mycompany': 'https://my.registry.com/' }) // 'https://my.registry.com/'
+ */
+export function getRegistryUrl(
+  scope: string | null | undefined,
+  customRegistries?: ScopeRegistries,
+): string {
+  // No scope → return public Registry
+  if (!scope) {
+    return PUBLIC_REGISTRY;
+  }
+
+  // With scope → lookup private Registry
+  const registry = getRegistryForScope(scope, customRegistries);
+
+  if (!registry) {
+    // Normalize scope for error message
+    const normalizedScope = scope.startsWith('@') ? scope : `@${scope}`;
+    throw new Error(
+      `Unknown scope ${normalizedScope}. No registry configured for this scope.`,
+    );
+  }
+
+  return registry;
 }
 
 /**
@@ -124,4 +235,86 @@ export function buildFullSkillName(scope: string | null, name: string): string {
  */
 export function getShortName(skillName: string): string {
   return parseSkillName(skillName).name;
+}
+
+/**
+ * Parse a skill identifier into its components (with version support)
+ *
+ * 支持私有 Registry（带 @scope）和公共 Registry（无 scope）两种格式。
+ *
+ * @param identifier - Skill identifier string
+ * @returns Parsed skill identifier with scope, name, version, and fullName
+ * @throws Error if identifier is invalid
+ *
+ * @example
+ * // 私有 Registry
+ * parseSkillIdentifier('@kanyun/planning-with-files')
+ * // { scope: '@kanyun', name: 'planning-with-files', version: undefined, fullName: '@kanyun/planning-with-files' }
+ *
+ * parseSkillIdentifier('@kanyun/skill@2.4.5')
+ * // { scope: '@kanyun', name: 'skill', version: '2.4.5', fullName: '@kanyun/skill' }
+ *
+ * // 公共 Registry
+ * parseSkillIdentifier('planning-with-files')
+ * // { scope: null, name: 'planning-with-files', version: undefined, fullName: 'planning-with-files' }
+ *
+ * parseSkillIdentifier('skill@latest')
+ * // { scope: null, name: 'skill', version: 'latest', fullName: 'skill' }
+ */
+export function parseSkillIdentifier(identifier: string): ParsedSkillIdentifier {
+  const trimmed = identifier.trim();
+
+  // 空字符串或仅空白
+  if (!trimmed) {
+    throw new Error('Invalid skill identifier: empty string');
+  }
+
+  // 以 @@ 开头无效
+  if (trimmed.startsWith('@@')) {
+    throw new Error('Invalid skill identifier: invalid scope format');
+  }
+
+  // 只有 @ 无效
+  if (trimmed === '@') {
+    throw new Error('Invalid skill identifier: missing scope and name');
+  }
+
+  // 带 scope 的格式: @scope/name[@version]
+  if (trimmed.startsWith('@')) {
+    // 正则匹配: @scope/name[@version]
+    // scope: 以 @ 开头，后面跟字母数字、连字符、下划线
+    // name: 字母数字、连字符、下划线
+    // version: 可选，@ 后跟任意非空字符
+    const scopedMatch = trimmed.match(/^(@[\w-]+)\/([\w-]+)(?:@(.+))?$/);
+
+    if (!scopedMatch) {
+      throw new Error(`Invalid skill identifier: ${identifier}`);
+    }
+
+    const [, scope, name, version] = scopedMatch;
+
+    return {
+      scope,
+      name,
+      version: version || undefined,
+      fullName: `${scope}/${name}`,
+    };
+  }
+
+  // 无 scope 的格式: name[@version]（公共 Registry）
+  // name 不能包含 /（否则可能是 git shorthand）
+  const unscopedMatch = trimmed.match(/^([\w-]+)(?:@(.+))?$/);
+
+  if (!unscopedMatch) {
+    throw new Error(`Invalid skill identifier: ${identifier}`);
+  }
+
+  const [, name, version] = unscopedMatch;
+
+  return {
+    scope: null,
+    name,
+    version: version || undefined,
+    fullName: name,
+  };
 }

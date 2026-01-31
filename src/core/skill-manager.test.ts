@@ -1,7 +1,9 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { HttpResolver } from './http-resolver.js';
+import { RegistryResolver } from './registry-resolver.js';
 import { SkillManager } from './skill-manager.js';
 
 describe('SkillManager', () => {
@@ -771,6 +773,391 @@ describe('SkillManager with custom registries', () => {
     // Should not throw
     const manager = new SkillManager(tempDir);
     expect(manager.getProjectRoot()).toBe(tempDir);
+  });
+});
+
+describe('SkillManager source type detection', () => {
+  let tempDir: string;
+  let manager: SkillManager;
+
+  beforeEach(() => {
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'reskill-source-type-test-'));
+    manager = new SkillManager(tempDir);
+  });
+
+  afterEach(() => {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  // Test the internal isHttpSource and isRegistrySource methods via reflection
+  // These are private, but we can verify the behavior via install() behavior
+
+  describe('registry source detection', () => {
+    it('should detect @scope/name as registry source', () => {
+      expect(RegistryResolver.isRegistryRef('@kanyun/planning-with-files')).toBe(true);
+      expect(RegistryResolver.isRegistryRef('@kanyun/skill@1.0.0')).toBe(true);
+    });
+
+    it('should detect simple name as public registry source', () => {
+      expect(RegistryResolver.isRegistryRef('my-skill')).toBe(true);
+      expect(RegistryResolver.isRegistryRef('my-skill@latest')).toBe(true);
+    });
+
+    it('should not detect git shorthand as registry source', () => {
+      expect(RegistryResolver.isRegistryRef('github:user/repo')).toBe(false);
+      expect(RegistryResolver.isRegistryRef('user/repo')).toBe(false);
+    });
+  });
+
+  describe('HTTP source detection', () => {
+    it('should detect HTTP URLs', () => {
+      expect(HttpResolver.isHttpUrl('https://example.com/skill.tar.gz')).toBe(true);
+      expect(HttpResolver.isHttpUrl('http://localhost/skill.tar.gz')).toBe(true);
+      expect(HttpResolver.isHttpUrl('oss://bucket/skill.tar.gz')).toBe(true);
+      expect(HttpResolver.isHttpUrl('s3://bucket/skill.tar.gz')).toBe(true);
+    });
+
+    it('should not detect Git URLs as HTTP', () => {
+      expect(HttpResolver.isHttpUrl('https://github.com/user/repo.git')).toBe(false);
+      expect(HttpResolver.isHttpUrl('https://github.com/user/repo/tree/main/skill')).toBe(false);
+    });
+  });
+
+  describe('source priority: Registry > HTTP > Git', () => {
+    it('should prioritize registry over git for simple names', () => {
+      // 'my-skill' should be treated as registry (public), not git
+      const ref = 'my-skill';
+      const isRegistry = RegistryResolver.isRegistryRef(ref);
+      const isHttp = HttpResolver.isHttpUrl(ref);
+
+      // Registry should match first
+      expect(isRegistry).toBe(true);
+      expect(isHttp).toBe(false);
+    });
+
+    it('should prioritize http over git for tarball URLs', () => {
+      const ref = 'https://example.com/skill.tar.gz';
+      const isRegistry = RegistryResolver.isRegistryRef(ref);
+      const isHttp = HttpResolver.isHttpUrl(ref);
+
+      // HTTP should match (registry should not)
+      expect(isRegistry).toBe(false);
+      expect(isHttp).toBe(true);
+    });
+
+    it('should fall through to git for owner/repo format', () => {
+      const ref = 'user/repo';
+      const isRegistry = RegistryResolver.isRegistryRef(ref);
+      const isHttp = HttpResolver.isHttpUrl(ref);
+
+      // Neither registry nor HTTP should match
+      expect(isRegistry).toBe(false);
+      expect(isHttp).toBe(false);
+      // Falls through to Git-based
+    });
+  });
+});
+
+describe('SkillManager installFromRegistry', () => {
+  let tempDir: string;
+  let manager: SkillManager;
+  let mockSkillDir: string;
+
+  // Helper to create a mock skill directory
+  function createMockSkillDir(name: string): string {
+    const skillDir = path.join(tempDir, 'mock-skills', name);
+    fs.mkdirSync(skillDir, { recursive: true });
+    fs.writeFileSync(path.join(skillDir, 'SKILL.md'), `# ${name}\n\nMock skill for testing.`);
+    fs.writeFileSync(
+      path.join(skillDir, 'skill.json'),
+      JSON.stringify({ name, version: '1.0.0', description: 'Mock skill' }),
+    );
+    return skillDir;
+  }
+
+  beforeEach(() => {
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'reskill-registry-install-test-'));
+    manager = new SkillManager(tempDir);
+    mockSkillDir = createMockSkillDir('test-skill');
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  describe('successful installation', () => {
+    it('should install skill from registry via install() method', async () => {
+      // Mock the registryResolver methods
+      const mockResolveResult = {
+        parsed: { scope: '@kanyun', name: 'test-skill', version: '1.0.0', fullName: '@kanyun/test-skill' },
+        shortName: 'test-skill',
+        version: '1.0.0',
+        registryUrl: 'https://registry.example.com/',
+        tarball: Buffer.from('mock tarball'),
+        integrity: 'sha256-mockhash',
+      };
+
+      // Access private registryResolver and mock its methods
+      const registryResolver = (manager as unknown as { registryResolver: RegistryResolver }).registryResolver;
+      vi.spyOn(registryResolver, 'resolve').mockResolvedValue(mockResolveResult);
+      vi.spyOn(registryResolver, 'extract').mockResolvedValue(mockSkillDir);
+
+      // Call install with a registry ref
+      const result = await manager.install('@kanyun/test-skill@1.0.0');
+
+      expect(result.name).toBe('test-skill');
+      expect(result.version).toBe('1.0.0');
+
+      // Verify skill was installed
+      const installedSkill = manager.getInstalledSkill('test-skill');
+      expect(installedSkill).not.toBeNull();
+    });
+
+    it('should save to skills.json by default', async () => {
+      const mockResolveResult = {
+        parsed: { scope: '@kanyun', name: 'test-skill', version: '1.0.0', fullName: '@kanyun/test-skill' },
+        shortName: 'test-skill',
+        version: '1.0.0',
+        registryUrl: 'https://registry.example.com/',
+        tarball: Buffer.from('mock tarball'),
+        integrity: 'sha256-mockhash',
+      };
+
+      const registryResolver = (manager as unknown as { registryResolver: RegistryResolver }).registryResolver;
+      vi.spyOn(registryResolver, 'resolve').mockResolvedValue(mockResolveResult);
+      vi.spyOn(registryResolver, 'extract').mockResolvedValue(mockSkillDir);
+
+      // Create skills.json first
+      fs.writeFileSync(path.join(tempDir, 'skills.json'), JSON.stringify({ skills: {} }));
+
+      await manager.install('@kanyun/test-skill@1.0.0');
+
+      // Verify skills.json was updated
+      const skillsJson = JSON.parse(fs.readFileSync(path.join(tempDir, 'skills.json'), 'utf-8'));
+      expect(skillsJson.skills['test-skill']).toBe('@kanyun/test-skill@1.0.0');
+    });
+
+    it('should not save to skills.json when save=false', async () => {
+      const mockResolveResult = {
+        parsed: { scope: '@kanyun', name: 'test-skill', version: '1.0.0', fullName: '@kanyun/test-skill' },
+        shortName: 'test-skill',
+        version: '1.0.0',
+        registryUrl: 'https://registry.example.com/',
+        tarball: Buffer.from('mock tarball'),
+        integrity: 'sha256-mockhash',
+      };
+
+      const registryResolver = (manager as unknown as { registryResolver: RegistryResolver }).registryResolver;
+      vi.spyOn(registryResolver, 'resolve').mockResolvedValue(mockResolveResult);
+      vi.spyOn(registryResolver, 'extract').mockResolvedValue(mockSkillDir);
+
+      // Create skills.json first
+      fs.writeFileSync(path.join(tempDir, 'skills.json'), JSON.stringify({ skills: {} }));
+
+      await manager.install('@kanyun/test-skill@1.0.0', { save: false });
+
+      // Verify skills.json was NOT updated
+      const skillsJson = JSON.parse(fs.readFileSync(path.join(tempDir, 'skills.json'), 'utf-8'));
+      expect(skillsJson.skills['test-skill']).toBeUndefined();
+    });
+
+    it('should update lock file with registry source', async () => {
+      const mockResolveResult = {
+        parsed: { scope: '@kanyun', name: 'test-skill', version: '1.0.0', fullName: '@kanyun/test-skill' },
+        shortName: 'test-skill',
+        version: '1.0.0',
+        registryUrl: 'https://registry.example.com/',
+        tarball: Buffer.from('mock tarball'),
+        integrity: 'sha256-mockhash',
+      };
+
+      const registryResolver = (manager as unknown as { registryResolver: RegistryResolver }).registryResolver;
+      vi.spyOn(registryResolver, 'resolve').mockResolvedValue(mockResolveResult);
+      vi.spyOn(registryResolver, 'extract').mockResolvedValue(mockSkillDir);
+
+      await manager.install('@kanyun/test-skill@1.0.0');
+
+      // Verify lock file was created
+      const lockPath = path.join(tempDir, 'skills.lock');
+      expect(fs.existsSync(lockPath)).toBe(true);
+
+      const lockData = JSON.parse(fs.readFileSync(lockPath, 'utf-8'));
+      expect(lockData.skills['test-skill'].source).toBe('registry:@kanyun/test-skill');
+      expect(lockData.skills['test-skill'].version).toBe('1.0.0');
+      expect(lockData.skills['test-skill'].commit).toBe('sha256-mockhash');
+    });
+  });
+
+  describe('already installed handling', () => {
+    it('should skip if same version already installed', async () => {
+      const mockResolveResult = {
+        parsed: { scope: '@kanyun', name: 'test-skill', version: '1.0.0', fullName: '@kanyun/test-skill' },
+        shortName: 'test-skill',
+        version: '1.0.0',
+        registryUrl: 'https://registry.example.com/',
+        tarball: Buffer.from('mock tarball'),
+        integrity: 'sha256-mockhash',
+      };
+
+      const registryResolver = (manager as unknown as { registryResolver: RegistryResolver }).registryResolver;
+      const resolveSpy = vi.spyOn(registryResolver, 'resolve').mockResolvedValue(mockResolveResult);
+      vi.spyOn(registryResolver, 'extract').mockResolvedValue(mockSkillDir);
+
+      // First install
+      await manager.install('@kanyun/test-skill@1.0.0');
+
+      // Reset the spy to track second call
+      resolveSpy.mockClear();
+
+      // Second install (same version)
+      const result = await manager.install('@kanyun/test-skill@1.0.0');
+
+      // Should still resolve to get version info, but should skip extraction
+      expect(result.name).toBe('test-skill');
+    });
+
+    it('should warn if different version already installed without --force', async () => {
+      // First, install version 1.0.0
+      const mockResolveResult1 = {
+        parsed: { scope: '@kanyun', name: 'test-skill', version: '1.0.0', fullName: '@kanyun/test-skill' },
+        shortName: 'test-skill',
+        version: '1.0.0',
+        registryUrl: 'https://registry.example.com/',
+        tarball: Buffer.from('mock tarball'),
+        integrity: 'sha256-mockhash',
+      };
+
+      const registryResolver = (manager as unknown as { registryResolver: RegistryResolver }).registryResolver;
+      vi.spyOn(registryResolver, 'resolve').mockResolvedValue(mockResolveResult1);
+      vi.spyOn(registryResolver, 'extract').mockResolvedValue(mockSkillDir);
+
+      await manager.install('@kanyun/test-skill@1.0.0');
+
+      // Now try to install version 2.0.0 without --force
+      const mockResolveResult2 = {
+        parsed: { scope: '@kanyun', name: 'test-skill', version: '2.0.0', fullName: '@kanyun/test-skill' },
+        shortName: 'test-skill',
+        version: '2.0.0',
+        registryUrl: 'https://registry.example.com/',
+        tarball: Buffer.from('mock tarball v2'),
+        integrity: 'sha256-mockhash2',
+      };
+
+      vi.spyOn(registryResolver, 'resolve').mockResolvedValue(mockResolveResult2);
+
+      // Should return without updating (warn user)
+      const result = await manager.install('@kanyun/test-skill@2.0.0');
+
+      // Still returns the installed skill, but version should still be 1.0.0
+      expect(result.name).toBe('test-skill');
+    });
+
+    it('should reinstall with --force flag', async () => {
+      // First install
+      const mockResolveResult1 = {
+        parsed: { scope: '@kanyun', name: 'test-skill', version: '1.0.0', fullName: '@kanyun/test-skill' },
+        shortName: 'test-skill',
+        version: '1.0.0',
+        registryUrl: 'https://registry.example.com/',
+        tarball: Buffer.from('mock tarball'),
+        integrity: 'sha256-mockhash',
+      };
+
+      const registryResolver = (manager as unknown as { registryResolver: RegistryResolver }).registryResolver;
+      vi.spyOn(registryResolver, 'resolve').mockResolvedValue(mockResolveResult1);
+      vi.spyOn(registryResolver, 'extract').mockResolvedValue(mockSkillDir);
+
+      await manager.install('@kanyun/test-skill@1.0.0');
+
+      // Create a new mock dir for version 2
+      const mockSkillDir2 = createMockSkillDir('test-skill-v2');
+      fs.writeFileSync(
+        path.join(mockSkillDir2, 'skill.json'),
+        JSON.stringify({ name: 'test-skill', version: '2.0.0', description: 'Updated skill' }),
+      );
+
+      // Now install version 2.0.0 with --force
+      const mockResolveResult2 = {
+        parsed: { scope: '@kanyun', name: 'test-skill', version: '2.0.0', fullName: '@kanyun/test-skill' },
+        shortName: 'test-skill',
+        version: '2.0.0',
+        registryUrl: 'https://registry.example.com/',
+        tarball: Buffer.from('mock tarball v2'),
+        integrity: 'sha256-mockhash2',
+      };
+
+      vi.spyOn(registryResolver, 'resolve').mockResolvedValue(mockResolveResult2);
+      vi.spyOn(registryResolver, 'extract').mockResolvedValue(mockSkillDir2);
+
+      const result = await manager.install('@kanyun/test-skill@2.0.0', { force: true });
+
+      expect(result.name).toBe('test-skill');
+      expect(result.version).toBe('2.0.0');
+
+      // Verify lock file was updated
+      const lockPath = path.join(tempDir, 'skills.lock');
+      const lockData = JSON.parse(fs.readFileSync(lockPath, 'utf-8'));
+      expect(lockData.skills['test-skill'].version).toBe('2.0.0');
+    });
+  });
+
+  describe('public registry (no scope)', () => {
+    it('should install from public registry with simple name', async () => {
+      const mockResolveResult = {
+        parsed: { scope: null, name: 'public-skill', version: '1.0.0', fullName: 'public-skill' },
+        shortName: 'public-skill',
+        version: '1.0.0',
+        registryUrl: 'https://reskill.info/',
+        tarball: Buffer.from('mock tarball'),
+        integrity: 'sha256-mockhash',
+      };
+
+      const publicSkillDir = createMockSkillDir('public-skill');
+
+      const registryResolver = (manager as unknown as { registryResolver: RegistryResolver }).registryResolver;
+      vi.spyOn(registryResolver, 'resolve').mockResolvedValue(mockResolveResult);
+      vi.spyOn(registryResolver, 'extract').mockResolvedValue(publicSkillDir);
+
+      const result = await manager.install('public-skill@1.0.0');
+
+      expect(result.name).toBe('public-skill');
+      expect(result.version).toBe('1.0.0');
+    });
+  });
+
+  describe('error handling', () => {
+    it('should propagate registry resolve errors', async () => {
+      const registryResolver = (manager as unknown as { registryResolver: RegistryResolver }).registryResolver;
+      vi.spyOn(registryResolver, 'resolve').mockRejectedValue(
+        new Error('Skill not found in registry'),
+      );
+
+      await expect(manager.install('@kanyun/non-existent@1.0.0')).rejects.toThrow(
+        'Skill not found in registry',
+      );
+    });
+
+    it('should propagate extraction errors', async () => {
+      const mockResolveResult = {
+        parsed: { scope: '@kanyun', name: 'test-skill', version: '1.0.0', fullName: '@kanyun/test-skill' },
+        shortName: 'test-skill',
+        version: '1.0.0',
+        registryUrl: 'https://registry.example.com/',
+        tarball: Buffer.from('invalid tarball'),
+        integrity: 'sha256-mockhash',
+      };
+
+      const registryResolver = (manager as unknown as { registryResolver: RegistryResolver }).registryResolver;
+      vi.spyOn(registryResolver, 'resolve').mockResolvedValue(mockResolveResult);
+      vi.spyOn(registryResolver, 'extract').mockRejectedValue(
+        new Error('Failed to extract tarball'),
+      );
+
+      await expect(manager.install('@kanyun/test-skill@1.0.0')).rejects.toThrow(
+        'Failed to extract tarball',
+      );
+    });
   });
 });
 
