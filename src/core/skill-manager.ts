@@ -1138,7 +1138,7 @@ export class SkillManager {
    * 通过 Registry 的 /api/skills/:name/download API 下载 tarball
    */
   private async installFromRegistryLocal(
-    skillInfo: SkillInfo,
+    _skillInfo: SkillInfo,  // 保留参数以便未来扩展（如日志记录）
     parsed: ReturnType<typeof parseSkillIdentifier>,
     targetAgents: AgentType[],
     options: InstallOptions = {},
