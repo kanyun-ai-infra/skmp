@@ -690,32 +690,9 @@ function isValidSymlink(path: string): boolean {
 }
 
 /**
- * Check if skill.json is valid JSON with required fields
- */
-function validateSkillJson(skillJsonPath: string): { valid: boolean; error?: string } {
-  if (!existsSync(skillJsonPath)) {
-    return { valid: true }; // Not present is OK if SKILL.md exists
-  }
-
-  try {
-    const content = readFileSync(skillJsonPath, 'utf-8');
-    const json = JSON.parse(content);
-
-    if (!json.name) {
-      return { valid: false, error: 'skill.json missing "name" field' };
-    }
-
-    return { valid: true };
-  } catch (error) {
-    if (error instanceof SyntaxError) {
-      return { valid: false, error: 'skill.json is not valid JSON' };
-    }
-    return { valid: false, error: `skill.json read error: ${(error as Error).message}` };
-  }
-}
-
-/**
  * Check installed skills with detailed diagnostics
+ *
+ * Only checks for SKILL.md since that's the sole source of metadata
  */
 export function checkInstalledSkills(cwd: string): CheckResult[] {
   const results: CheckResult[] = [];
@@ -736,7 +713,6 @@ export function checkInstalledSkills(cwd: string): CheckResult[] {
   const issues: SkillIssue[] = [];
 
   for (const skill of installed) {
-    const skillJsonPath = join(skill.path, 'skill.json');
     const skillMdPath = join(skill.path, 'SKILL.md');
 
     // Check for broken symlink
@@ -749,29 +725,16 @@ export function checkInstalledSkills(cwd: string): CheckResult[] {
       continue;
     }
 
-    // Check for missing both files
-    const hasSkillJson = existsSync(skillJsonPath);
+    // Check for missing SKILL.md (required per agentskills.io spec)
     const hasSkillMd = existsSync(skillMdPath);
 
-    if (!hasSkillJson && !hasSkillMd) {
+    if (!hasSkillMd) {
       issues.push({
         name: skill.name,
-        reason: 'missing both skill.json and SKILL.md',
+        reason: 'missing SKILL.md',
         severity: 'error',
       });
       continue;
-    }
-
-    // Validate skill.json if present
-    if (hasSkillJson) {
-      const validation = validateSkillJson(skillJsonPath);
-      if (!validation.valid) {
-        issues.push({
-          name: skill.name,
-          reason: validation.error || 'invalid skill.json',
-          severity: 'warn',
-        });
-      }
     }
   }
 

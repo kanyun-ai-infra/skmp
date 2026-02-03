@@ -476,49 +476,48 @@ describe('doctor checks', () => {
       expect(results[0].status).toBe('ok');
     });
 
-    it('should return ok when only skill.json exists', () => {
+    it('should return error when only skill.json exists (SKILL.md is required)', () => {
       const skillsDir = join(testDir, '.skills', 'test-skill');
       mkdirSync(skillsDir, { recursive: true });
       writeFileSync(join(skillsDir, 'skill.json'), JSON.stringify({ name: 'test-skill' }));
+      // skill.json is ignored - SKILL.md is required
 
       const results = checkInstalledSkills(testDir);
-      expect(results.length).toBe(1);
-      expect(results[0].status).toBe('ok');
+      expect(results.length).toBe(2); // Summary + detail
+      expect(results[0].status).toBe('error');
     });
 
-    it('should return error for broken skills (missing both skill.json and SKILL.md)', () => {
+    it('should return error for broken skills (missing SKILL.md)', () => {
       const skillsDir = join(testDir, '.skills', 'broken-skill');
       mkdirSync(skillsDir, { recursive: true });
-      // No skill.json or SKILL.md
+      // No SKILL.md
 
       const results = checkInstalledSkills(testDir);
       expect(results.length).toBe(2); // Summary + detail
       expect(results[0].status).toBe('error');
       expect(results[0].message).toContain('broken');
-      expect(results[1].message).toContain('missing both skill.json and SKILL.md');
+      expect(results[1].message).toContain('missing SKILL.md');
     });
 
-    it('should return warn for invalid skill.json', () => {
+    it('should not check skill.json (SKILL.md is sole source)', () => {
       const skillsDir = join(testDir, '.skills', 'invalid-skill');
       mkdirSync(skillsDir, { recursive: true });
+      // skill.json with invalid JSON is ignored
       writeFileSync(join(skillsDir, 'skill.json'), 'not valid json{{{');
+      // Create valid SKILL.md
+      writeFileSync(join(skillsDir, 'SKILL.md'), `---
+name: invalid-skill
+description: Test
+---
+# Test`);
 
       const results = checkInstalledSkills(testDir);
-      expect(results.length).toBe(2); // Summary + detail
-      expect(results[0].status).toBe('warn');
-      expect(results[1].message).toContain('not valid JSON');
+      expect(results.length).toBe(1); // Summary only
+      expect(results[0].status).toBe('ok');
     });
 
-    it('should return warn for skill.json missing name field', () => {
-      const skillsDir = join(testDir, '.skills', 'no-name-skill');
-      mkdirSync(skillsDir, { recursive: true });
-      writeFileSync(join(skillsDir, 'skill.json'), JSON.stringify({ version: '1.0.0' }));
-
-      const results = checkInstalledSkills(testDir);
-      expect(results.length).toBe(2); // Summary + detail
-      expect(results[0].status).toBe('warn');
-      expect(results[1].message).toContain('missing "name" field');
-    });
+    // Removed test: skill.json is no longer validated
+    // SKILL.md is the sole source of metadata
 
     it('should report multiple issues separately', () => {
       // Create two broken skills
@@ -542,8 +541,13 @@ describe('doctor checks', () => {
       const brokenDir = join(testDir, '.skills', 'broken-skill');
       mkdirSync(validDir, { recursive: true });
       mkdirSync(brokenDir, { recursive: true });
-      writeFileSync(join(validDir, 'skill.json'), JSON.stringify({ name: 'valid-skill' }));
-      // brokenDir has no files
+      // Valid skill has SKILL.md
+      writeFileSync(join(validDir, 'SKILL.md'), `---
+name: valid-skill
+description: Test
+---
+# Test`);
+      // brokenDir has no SKILL.md
 
       const results = checkInstalledSkills(testDir);
       expect(results.length).toBe(2); // Summary + 1 detail

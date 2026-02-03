@@ -1,5 +1,5 @@
 import * as path from 'node:path';
-import type { InstalledSkill, InstallOptions, SkillInfo, SkillJson } from '../types/index.js';
+import type { InstalledSkill, InstallOptions, SkillInfo } from '../types/index.js';
 import {
   ensureDir,
   exists,
@@ -8,7 +8,6 @@ import {
   isDirectory,
   isSymlink,
   listDir,
-  readJson,
   remove,
 } from '../utils/fs.js';
 import { logger } from '../utils/logger.js';
@@ -27,6 +26,7 @@ import { Installer, type InstallMode, type InstallResult } from './installer.js'
 import { LockManager } from './lock-manager.js';
 import { RegistryClient, RegistryError } from './registry-client.js';
 import { RegistryResolver } from './registry-resolver.js';
+import { parseSkillFromDir } from './skill-parser.js';
 
 /**
  * SkillManager configuration options
@@ -156,6 +156,32 @@ export class SkillManager {
   }
 
   /**
+   * Get skill metadata from SKILL.md in a directory
+   *
+   * @param dirPath - Path to the skill directory
+   * @returns Skill metadata (name, version, description) or null if not found
+   */
+  private getSkillMetadataFromDir(dirPath: string): {
+    name: string;
+    version?: string;
+    description?: string;
+  } | null {
+    try {
+      const skill = parseSkillFromDir(dirPath);
+      if (skill?.name) {
+        return {
+          name: skill.name,
+          version: skill.version,
+          description: skill.description,
+        };
+      }
+    } catch (error) {
+      logger.debug(`Failed to parse SKILL.md in ${dirPath}: ${(error as Error).message}`);
+    }
+    return null;
+  }
+
+  /**
    * Install skill
    */
   async install(ref: string, options: InstallOptions = {}): Promise<InstalledSkill> {
@@ -176,11 +202,26 @@ export class SkillManager {
     const resolved = await this.resolver.resolve(ref);
     const { parsed, repoUrl } = resolved;
     const gitRef = resolved.ref; // Git reference (tag, branch, commit)
-    const skillName = parsed.subPath ? path.basename(parsed.subPath) : parsed.repo;
+    // Fallback name from path/repo (will be overridden by SKILL.md name if available)
+    const fallbackName = parsed.subPath ? path.basename(parsed.subPath) : parsed.repo;
+
+    // Cache first - we need to read SKILL.md to get the real name
+    let cacheResult = await this.cache.get(parsed, gitRef);
+
+    if (!cacheResult) {
+      logger.debug(`Caching from ${repoUrl}@${gitRef}`);
+      cacheResult = await this.cache.cache(repoUrl, parsed, gitRef, gitRef);
+    }
+
+    // Get the real skill name from SKILL.md in cache
+    const cachePath = this.cache.getCachePath(parsed, gitRef);
+    const metadata = this.getSkillMetadataFromDir(cachePath);
+    const skillName = metadata?.name ?? fallbackName;
+    const semanticVersion = metadata?.version ?? gitRef;
 
     const skillPath = this.getSkillPath(skillName);
 
-    // Check if already installed
+    // Check if already installed (using the real name from SKILL.md)
     if (exists(skillPath) && !force) {
       const locked = this.lockManager.get(skillName);
       // Compare ref if available, fallback to version for backward compatibility
@@ -200,16 +241,6 @@ export class SkillManager {
 
     logger.package(`Installing ${skillName}@${gitRef}...`);
 
-    // Check cache
-    let cacheResult = await this.cache.get(parsed, gitRef);
-
-    if (!cacheResult) {
-      logger.debug(`Caching ${skillName}@${gitRef} from ${repoUrl}`);
-      cacheResult = await this.cache.cache(repoUrl, parsed, gitRef, gitRef);
-    } else {
-      logger.debug(`Using cached ${skillName}@${gitRef}`);
-    }
-
     // Copy to installation directory
     ensureDir(this.getInstallDir());
 
@@ -218,20 +249,6 @@ export class SkillManager {
     }
 
     await this.cache.copyTo(parsed, gitRef, skillPath);
-
-    // Read semantic version from skill.json
-    let semanticVersion = gitRef; // fallback to gitRef if no skill.json
-    const skillJsonPath = path.join(skillPath, 'skill.json');
-    if (exists(skillJsonPath)) {
-      try {
-        const skillJson = readJson<SkillJson>(skillJsonPath);
-        if (skillJson.version) {
-          semanticVersion = skillJson.version;
-        }
-      } catch {
-        // Ignore parse errors, use gitRef as fallback
-      }
-    }
 
     // Update lock file (project mode only)
     if (!this.isGlobal) {
@@ -278,11 +295,26 @@ export class SkillManager {
     const resolved = await this.httpResolver.resolve(ref);
     const { parsed, repoUrl, httpInfo } = resolved;
     const version = resolved.ref || 'latest';
-    const skillName = httpInfo.skillName;
+    // Fallback name from URL (will be overridden by SKILL.md name if available)
+    const fallbackName = httpInfo.skillName;
+
+    // Cache first - we need to read SKILL.md to get the real name
+    let cacheResult = await this.cache.get(parsed, version);
+
+    if (!cacheResult) {
+      logger.debug(`Downloading from ${repoUrl}`);
+      cacheResult = await this.cache.cacheFromHttp(repoUrl, parsed, version);
+    }
+
+    // Get the real skill name from SKILL.md in cache
+    const cachePath = this.cache.getCachePath(parsed, version);
+    const metadata = this.getSkillMetadataFromDir(cachePath);
+    const skillName = metadata?.name ?? fallbackName;
+    const semanticVersion = metadata?.version ?? version;
 
     const skillPath = this.getSkillPath(skillName);
 
-    // Check if already installed
+    // Check if already installed (using the real name from SKILL.md)
     if (exists(skillPath) && !force) {
       const locked = this.lockManager.get(skillName);
       const lockedRef = locked?.ref || locked?.version;
@@ -301,16 +333,6 @@ export class SkillManager {
 
     logger.package(`Installing ${skillName}@${version} from ${httpInfo.host}...`);
 
-    // Check cache
-    let cacheResult = await this.cache.get(parsed, version);
-
-    if (!cacheResult) {
-      logger.debug(`Downloading ${skillName}@${version} from ${repoUrl}`);
-      cacheResult = await this.cache.cacheFromHttp(repoUrl, parsed, version);
-    } else {
-      logger.debug(`Using cached ${skillName}@${version}`);
-    }
-
     // Copy to installation directory
     ensureDir(this.getInstallDir());
 
@@ -319,20 +341,6 @@ export class SkillManager {
     }
 
     await this.cache.copyTo(parsed, version, skillPath);
-
-    // Read semantic version from skill.json
-    let semanticVersion = version;
-    const skillJsonPath = path.join(skillPath, 'skill.json');
-    if (exists(skillJsonPath)) {
-      try {
-        const skillJson = readJson<SkillJson>(skillJsonPath);
-        if (skillJson.version) {
-          semanticVersion = skillJson.version;
-        }
-      } catch {
-        // Ignore parse errors
-      }
-    }
 
     // Update lock file (project mode only)
     if (!this.isGlobal) {
@@ -566,23 +574,19 @@ export class SkillManager {
     const isLinked = isSymlink(skillPath);
     const locked = this.lockManager.get(name);
 
-    let metadata: SkillJson | undefined;
-    const skillJsonPath = path.join(skillPath, 'skill.json');
+    // Read metadata from SKILL.md (sole source per agentskills.io spec)
+    const skillMd = this.getSkillMetadataFromDir(skillPath);
 
-    if (exists(skillJsonPath)) {
-      try {
-        metadata = readJson<SkillJson>(skillJsonPath);
-      } catch {
-        // Ignore parse errors
-      }
-    }
+    // Version priority: locked > SKILL.md > 'unknown'
+    const version = isLinked
+      ? 'local'
+      : locked?.version || skillMd?.version || 'unknown';
 
     return {
       name,
       path: skillPath,
-      version: isLinked ? 'local' : locked?.version || metadata?.version || 'unknown',
+      version,
       source: isLinked ? getRealPath(skillPath) : locked?.source || '',
-      metadata,
       isLinked,
     };
   }
@@ -743,36 +747,26 @@ export class SkillManager {
     const resolved = await this.resolver.resolve(ref);
     const { parsed, repoUrl } = resolved;
     const gitRef = resolved.ref; // Git reference (tag, branch, commit)
-    const skillName = parsed.subPath ? path.basename(parsed.subPath) : parsed.repo;
+    // Fallback name from path/repo (will be overridden by SKILL.md name if available)
+    const fallbackName = parsed.subPath ? path.basename(parsed.subPath) : parsed.repo;
 
-    logger.package(`Installing ${skillName}@${gitRef} to ${targetAgents.length} agent(s)...`);
-
-    // Check cache
+    // Cache first - we need to read SKILL.md to get the real name
     let cacheResult = await this.cache.get(parsed, gitRef);
 
     if (!cacheResult) {
-      logger.debug(`Caching ${skillName}@${gitRef} from ${repoUrl}`);
+      logger.debug(`Caching from ${repoUrl}@${gitRef}`);
       cacheResult = await this.cache.cache(repoUrl, parsed, gitRef, gitRef);
-    } else {
-      logger.debug(`Using cached ${skillName}@${gitRef}`);
     }
 
     // Get cache path as source
     const sourcePath = this.cache.getCachePath(parsed, gitRef);
 
-    // Read semantic version from skill.json
-    let semanticVersion = gitRef; // fallback to gitRef if no skill.json
-    const skillJsonPath = path.join(sourcePath, 'skill.json');
-    if (exists(skillJsonPath)) {
-      try {
-        const skillJson = readJson<SkillJson>(skillJsonPath);
-        if (skillJson.version) {
-          semanticVersion = skillJson.version;
-        }
-      } catch {
-        // Ignore parse errors, use gitRef as fallback
-      }
-    }
+    // Get the real skill name from SKILL.md in cache
+    const metadata = this.getSkillMetadataFromDir(sourcePath);
+    const skillName = metadata?.name ?? fallbackName;
+    const semanticVersion = metadata?.version ?? gitRef;
+
+    logger.package(`Installing ${skillName}@${gitRef} to ${targetAgents.length} agent(s)...`);
 
     // Create Installer with custom installDir from config
     const defaults = this.config.getDefaults();
@@ -847,38 +841,28 @@ export class SkillManager {
     const resolved = await this.httpResolver.resolve(ref);
     const { parsed, repoUrl, httpInfo } = resolved;
     const version = resolved.ref || 'latest';
-    const skillName = httpInfo.skillName;
+    // Fallback name from URL (will be overridden by SKILL.md name if available)
+    const fallbackName = httpInfo.skillName;
 
-    logger.package(
-      `Installing ${skillName}@${version} from ${httpInfo.host} to ${targetAgents.length} agent(s)...`,
-    );
-
-    // Check cache
+    // Cache first - we need to read SKILL.md to get the real name
     let cacheResult = await this.cache.get(parsed, version);
 
     if (!cacheResult) {
-      logger.debug(`Downloading ${skillName}@${version} from ${repoUrl}`);
+      logger.debug(`Downloading from ${repoUrl}`);
       cacheResult = await this.cache.cacheFromHttp(repoUrl, parsed, version);
-    } else {
-      logger.debug(`Using cached ${skillName}@${version}`);
     }
 
     // Get cache path as source
     const sourcePath = this.cache.getCachePath(parsed, version);
 
-    // Read semantic version from skill.json
-    let semanticVersion = version;
-    const skillJsonPath = path.join(sourcePath, 'skill.json');
-    if (exists(skillJsonPath)) {
-      try {
-        const skillJson = readJson<SkillJson>(skillJsonPath);
-        if (skillJson.version) {
-          semanticVersion = skillJson.version;
-        }
-      } catch {
-        // Ignore parse errors
-      }
-    }
+    // Get the real skill name from SKILL.md in cache
+    const metadata = this.getSkillMetadataFromDir(sourcePath);
+    const skillName = metadata?.name ?? fallbackName;
+    const semanticVersion = metadata?.version ?? version;
+
+    logger.package(
+      `Installing ${skillName}@${version} from ${httpInfo.host} to ${targetAgents.length} agent(s)...`,
+    );
 
     // Create Installer with custom installDir from config
     const defaults = this.config.getDefaults();

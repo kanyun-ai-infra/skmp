@@ -47,7 +47,7 @@ export const infoCommand = new Command('info')
 
       if (info.installed.metadata) {
         const meta = info.installed.metadata;
-        logger.log(`Metadata (skill.json):`);
+        logger.log(`Metadata (SKILL.md):`);
         if (meta.description) logger.log(`  Description: ${meta.description}`);
         if (meta.author) logger.log(`  Author: ${meta.author}`);
         if (meta.license) logger.log(`  License: ${meta.license}`);

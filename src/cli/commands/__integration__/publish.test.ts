@@ -186,105 +186,91 @@ description: Test skill
       expect(getOutput(result)).toContain('No changes made');
     });
 
-    it('should show warning about missing skill.json', () => {
-      createValidSkillMd();
-
-      const result = runCli(`publish --dry-run --registry ${TEST_REGISTRY}`, tempDir);
-
-      expect(result.exitCode).toBe(0);
-      expect(getOutput(result)).toContain('skill.json');
-      expect(getOutput(result)).toContain('optional');
-    });
+    // Removed: skill.json is no longer used, no warning expected
   });
 
   // ============================================================================
-  // --dry-run validation: skill.json (optional)
+  // --dry-run: skill.json is ignored (SKILL.md is sole source)
   // ============================================================================
 
-  describe('--dry-run: skill.json validation (optional)', () => {
-    it('should fail with invalid JSON in skill.json', () => {
+  describe('--dry-run: skill.json is ignored (SKILL.md is sole source)', () => {
+    it('should pass even with invalid JSON in skill.json', () => {
       createValidSkillMd();
       fs.writeFileSync(path.join(tempDir, 'skill.json'), '{ invalid json }');
 
       const result = runCli(`publish --dry-run --registry ${TEST_REGISTRY}`, tempDir);
 
-      expect(result.exitCode).toBe(1);
-      expect(getOutput(result)).toContain('skill.json');
+      // skill.json is ignored, so should pass
+      expect(result.exitCode).toBe(0);
     });
 
-    it('should fail with invalid version in skill.json', () => {
-      createValidSkillMd();
-      createSkillJson({
-        name: 'my-skill',
-        version: '1.0', // Invalid semver
-        description: 'Test skill',
-      });
-
-      const result = runCli(`publish --dry-run --registry ${TEST_REGISTRY}`, tempDir);
-
-      expect(result.exitCode).toBe(1);
-      expect(getOutput(result)).toContain('semver');
-    });
-
-    it('should fail when names mismatch between SKILL.md and skill.json', () => {
+    it('should ignore skill.json name since SKILL.md name is authoritative', () => {
+      // SKILL.md name is the sole authority now - skill.json name is ignored
       createValidSkillMd('my-skill');
       createSkillJson({
-        name: 'different-skill',
+        name: 'different-skill', // This name is ignored
         version: '1.0.0',
         description: 'Test skill',
       });
 
       const result = runCli(`publish --dry-run --registry ${TEST_REGISTRY}`, tempDir);
 
-      expect(result.exitCode).toBe(1);
-      expect(getOutput(result)).toContain('mismatch');
+      // Should pass validation since SKILL.md name is authoritative
+      expect(result.exitCode).toBe(0);
+      // Should use SKILL.md name, not skill.json name
+      expect(getOutput(result)).toContain('my-skill');
+      expect(getOutput(result)).not.toContain('mismatch');
     });
 
-    it('should pass with valid SKILL.md and skill.json', () => {
-      createValidSkillMd();
+    it('should ignore skill.json version and use SKILL.md version', () => {
+      createSkillMd(`---
+name: my-skill
+description: A helpful AI skill
+version: 2.0.0
+---
+# Content`);
       createSkillJson({
         name: 'my-skill',
-        version: '1.0.0',
+        version: '1.0.0', // This is ignored
         description: 'A helpful AI skill',
       });
 
       const result = runCli(`publish --dry-run --registry ${TEST_REGISTRY}`, tempDir);
 
       expect(result.exitCode).toBe(0);
-      expect(getOutput(result)).toContain('Dry run');
-      expect(getOutput(result)).toContain('my-skill');
-      expect(getOutput(result)).toContain('1.0.0');
-      expect(getOutput(result)).toContain('No changes made');
+      expect(getOutput(result)).toContain('2.0.0'); // SKILL.md version
     });
   });
 
   // ============================================================================
-  // --dry-run validation: SKILL.md with skill.json
+  // --dry-run: SKILL.md is sole source of metadata
   // ============================================================================
 
-  describe('--dry-run: SKILL.md with skill.json', () => {
-    it('should pass with valid SKILL.md and skill.json', () => {
-      createValidSkillMd();
-      createSkillJson({
-        name: 'my-skill',
-        version: '1.0.0',
-        description: 'Test skill',
-      });
+  describe('--dry-run: SKILL.md is sole source of metadata', () => {
+    it('should load all metadata from SKILL.md', () => {
+      createSkillMd(`---
+name: my-skill
+description: A helpful AI skill
+version: 1.5.0
+license: MIT
+---
+# Content`);
 
       const result = runCli(`publish --dry-run --registry ${TEST_REGISTRY}`, tempDir);
 
       expect(result.exitCode).toBe(0);
       expect(getOutput(result)).toContain('SKILL.md found');
-      expect(getOutput(result)).toContain('skill.json found');
+      expect(getOutput(result)).toContain('Metadata loaded from SKILL.md');
+      expect(getOutput(result)).toContain('1.5.0');
     });
 
-    it('should use version from skill.json', () => {
-      createValidSkillMd();
-      createSkillJson({
-        name: 'my-skill',
-        version: '2.5.0',
-        description: 'Test skill',
-      });
+    it('should use version from SKILL.md frontmatter', () => {
+      createSkillMd(`---
+name: my-skill
+description: Test skill
+version: 2.5.0
+---
+# Content`);
 
       const result = runCli(`publish --dry-run --registry ${TEST_REGISTRY}`, tempDir);
 
@@ -453,21 +439,8 @@ description: Test skill
   // ============================================================================
 
   describe('--dry-run: Metadata display', () => {
-    it('should display keywords from skill.json', () => {
-      createValidSkillMd();
-      createSkillJson({
-        name: 'my-skill',
-        version: '1.0.0',
-        description: 'Test skill',
-        keywords: ['typescript', 'testing', 'ai'],
-      });
-
-      const result = runCli(`publish --dry-run --registry ${TEST_REGISTRY}`, tempDir);
-
-      expect(result.exitCode).toBe(0);
-      expect(getOutput(result)).toContain('typescript');
-      expect(getOutput(result)).toContain('testing');
-    });
+    // Note: Keywords from SKILL.md metadata aren't fully supported by the simple YAML parser
+    // So we only test license which is a top-level field
 
     it('should display license from SKILL.md', () => {
       createSkillMd(`---
@@ -483,38 +456,18 @@ license: MIT
       expect(getOutput(result)).toContain('MIT');
     });
 
-    it('should display license from skill.json', () => {
-      createValidSkillMd();
-      createSkillJson({
-        name: 'my-skill',
-        version: '1.0.0',
-        description: 'Test skill',
-        license: 'Apache-2.0',
-      });
-
-      const result = runCli(`publish --dry-run --registry ${TEST_REGISTRY}`, tempDir);
-
-      expect(result.exitCode).toBe(0);
-      expect(getOutput(result)).toContain('Apache-2.0');
-    });
-
-    it('should display compatibility from skill.json', () => {
-      createValidSkillMd();
-      createSkillJson({
-        name: 'my-skill',
-        version: '1.0.0',
-        description: 'Test skill',
-        compatibility: {
-          cursor: '>=0.40',
-          claude: '>=3.5',
-        },
-      });
+    it('should display compatibility from SKILL.md', () => {
+      createSkillMd(`---
+name: my-skill
+description: Test skill
+compatibility: cursor >=0.40
+---
+# Content`);
 
       const result = runCli(`publish --dry-run --registry ${TEST_REGISTRY}`, tempDir);
 
       expect(result.exitCode).toBe(0);
       expect(getOutput(result)).toContain('cursor');
-      expect(getOutput(result)).toContain('>=0.40');
     });
   });
 
@@ -657,38 +610,8 @@ description: A skill in subdirectory
   // Custom entry file
   // ============================================================================
 
-  describe('custom entry file', () => {
-    it('should fail when custom entry file does not exist', () => {
-      createValidSkillMd();
-      createSkillJson({
-        name: 'my-skill',
-        version: '1.0.0',
-        description: 'Test skill',
-        entry: 'CUSTOM.md',
-      });
-
-      const result = runCli(`publish --dry-run --registry ${TEST_REGISTRY}`, tempDir);
-
-      expect(result.exitCode).toBe(1);
-      expect(getOutput(result)).toContain('entry');
-      expect(getOutput(result)).toContain('CUSTOM.md');
-    });
-
-    it('should pass when custom entry file exists', () => {
-      createValidSkillMd();
-      createSkillJson({
-        name: 'my-skill',
-        version: '1.0.0',
-        description: 'Test skill',
-        entry: 'CUSTOM.md',
-      });
-      fs.writeFileSync(path.join(tempDir, 'CUSTOM.md'), '# Custom Entry');
-
-      const result = runCli(`publish --dry-run --registry ${TEST_REGISTRY}`, tempDir);
-
-      expect(result.exitCode).toBe(0);
-    });
-  });
+  // Custom entry file validation removed: SKILL.md is always the entry point
+  // skill.json entry field is ignored
 
   // ============================================================================
   // No registry specified
