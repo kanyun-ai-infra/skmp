@@ -1,11 +1,11 @@
 /**
  * SkillValidator unit tests
  *
- * Tests for validating SKILL.md and skill.json for publishing
+ * Tests for validating SKILL.md for publishing
  *
  * Following agentskills.io specification:
  * - SKILL.md is REQUIRED with name and description in frontmatter
- * - skill.json is OPTIONAL for additional metadata
+ * - All metadata (name, version, description, license) comes from SKILL.md
  */
 
 import * as fs from 'node:fs';
@@ -303,6 +303,32 @@ name: my-skill
         expect(result.errors[0].field).toBe('SKILL.md');
       });
 
+      it('should fail when SKILL.md has uppercase name', () => {
+        createSkillMd(`---
+name: MySkill
+description: A skill with uppercase name
+---
+# Content`);
+
+        const result = validator.validate(tempDir);
+        expect(result.valid).toBe(false);
+        expect(result.errors.some((e) => e.field === 'name' && e.message.includes('lowercase'))).toBe(
+          true,
+        );
+      });
+
+      it('should fail when SKILL.md name starts with hyphen', () => {
+        createSkillMd(`---
+name: -invalid-skill
+description: A skill starting with hyphen
+---
+# Content`);
+
+        const result = validator.validate(tempDir);
+        expect(result.valid).toBe(false);
+        expect(result.errors.some((e) => e.field === 'name')).toBe(true);
+      });
+
       it('should fail with invalid name format in SKILL.md', () => {
         createSkillMd(`---
 name: MySkill
@@ -329,7 +355,7 @@ description: Use <tool> for tasks
 
     describe('skill.json is ignored (SKILL.md is sole source)', () => {
       it('should ignore skill.json entirely and only use SKILL.md', () => {
-        createValidSkillMd();
+        createValidSkillMd();  // Creates name: 'my-skill', description: 'A helpful skill'
         createSkillJson({
           name: 'different-name',
           version: '99.0.0',
@@ -340,6 +366,12 @@ description: Use <tool> for tasks
         // Should pass - skill.json is completely ignored
         expect(result.valid).toBe(true);
         expect(result.errors).toHaveLength(0);
+
+        // Verify loaded data comes from SKILL.md, not skill.json
+        const skill = validator.loadSkill(tempDir);
+        expect(skill.skillJson?.name).toBe('my-skill');  // From SKILL.md
+        expect(skill.skillJson?.version).toBe('0.0.0');  // Default version, not 99.0.0
+        expect(skill.skillJson?.description).toBe('A helpful skill');  // From SKILL.md
       });
 
       it('should pass even if skill.json has invalid JSON', () => {

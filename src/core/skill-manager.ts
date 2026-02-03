@@ -175,8 +175,8 @@ export class SkillManager {
           description: skill.description,
         };
       }
-    } catch {
-      // Ignore parse errors
+    } catch (error) {
+      logger.debug(`Failed to parse SKILL.md in ${dirPath}: ${(error as Error).message}`);
     }
     return null;
   }
