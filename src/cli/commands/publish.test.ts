@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { isBlockedPublicRegistry, buildPublishSkillName } from './publish.js';
+import { isBlockedPublicRegistry, buildPublishSkillName, parseConfirmAnswer } from './publish.js';
 import { getScopeForRegistry } from '../../utils/registry-scope.js';
 
 describe('publish command', () => {
@@ -163,6 +163,98 @@ describe('publish command', () => {
 
     it('should return null for unknown registry', () => {
       expect(getScopeForRegistry('https://other-registry.com/')).toBeNull();
+    });
+  });
+
+  // ============================================================================
+  // parseConfirmAnswer tests
+  // ============================================================================
+
+  describe('parseConfirmAnswer', () => {
+    describe('should confirm (return true)', () => {
+      it('should return true for empty string (default yes)', () => {
+        expect(parseConfirmAnswer('')).toBe(true);
+      });
+
+      it('should return true for whitespace only (default yes)', () => {
+        expect(parseConfirmAnswer('   ')).toBe(true);
+        expect(parseConfirmAnswer('\t')).toBe(true);
+        expect(parseConfirmAnswer('\n')).toBe(true);
+      });
+
+      it('should return true for "y"', () => {
+        expect(parseConfirmAnswer('y')).toBe(true);
+      });
+
+      it('should return true for "Y"', () => {
+        expect(parseConfirmAnswer('Y')).toBe(true);
+      });
+
+      it('should return true for "yes"', () => {
+        expect(parseConfirmAnswer('yes')).toBe(true);
+      });
+
+      it('should return true for "YES"', () => {
+        expect(parseConfirmAnswer('YES')).toBe(true);
+      });
+
+      it('should return true for "Yes"', () => {
+        expect(parseConfirmAnswer('Yes')).toBe(true);
+      });
+
+      it('should return true for any other input (forgiving default)', () => {
+        expect(parseConfirmAnswer('ok')).toBe(true);
+        expect(parseConfirmAnswer('sure')).toBe(true);
+        expect(parseConfirmAnswer('yep')).toBe(true);
+        expect(parseConfirmAnswer('xyz')).toBe(true);
+      });
+
+      it('should return true for "y" with whitespace', () => {
+        expect(parseConfirmAnswer('  y  ')).toBe(true);
+        expect(parseConfirmAnswer('\ty\n')).toBe(true);
+      });
+    });
+
+    describe('should decline (return false)', () => {
+      it('should return false for "n"', () => {
+        expect(parseConfirmAnswer('n')).toBe(false);
+      });
+
+      it('should return false for "N"', () => {
+        expect(parseConfirmAnswer('N')).toBe(false);
+      });
+
+      it('should return false for "no"', () => {
+        expect(parseConfirmAnswer('no')).toBe(false);
+      });
+
+      it('should return false for "NO"', () => {
+        expect(parseConfirmAnswer('NO')).toBe(false);
+      });
+
+      it('should return false for "No"', () => {
+        expect(parseConfirmAnswer('No')).toBe(false);
+      });
+
+      it('should return false for "n" with whitespace', () => {
+        expect(parseConfirmAnswer('  n  ')).toBe(false);
+        expect(parseConfirmAnswer('\tno\n')).toBe(false);
+      });
+    });
+
+    describe('edge cases', () => {
+      it('should return true for "nope" (not exactly "n" or "no")', () => {
+        // "nope" is not "n" or "no", so it confirms (forgiving behavior)
+        expect(parseConfirmAnswer('nope')).toBe(true);
+      });
+
+      it('should return true for "nah" (not exactly "n" or "no")', () => {
+        expect(parseConfirmAnswer('nah')).toBe(true);
+      });
+
+      it('should return true for "maybe"', () => {
+        expect(parseConfirmAnswer('maybe')).toBe(true);
+      });
     });
   });
 });

@@ -322,6 +322,22 @@ function displayWarnings(validation: ValidationResult): void {
 }
 
 /**
+ * Parse user's confirmation answer
+ *
+ * Default is Yes - returns true for empty input or any input except 'n'/'no'
+ *
+ * @param answer - User's input string
+ * @returns true if confirmed, false if declined
+ *
+ * @internal Exported for testing
+ */
+export function parseConfirmAnswer(answer: string): boolean {
+  const trimmed = answer.trim().toLowerCase();
+  // Default to true (Yes) if empty, only false if explicitly 'n' or 'no'
+  return trimmed !== 'n' && trimmed !== 'no';
+}
+
+/**
  * Confirm publish
  */
 async function confirmPublish(name: string, version: string, registry: string): Promise<boolean> {
@@ -334,9 +350,7 @@ async function confirmPublish(name: string, version: string, registry: string): 
     // Default is Yes (capital Y), pressing Enter confirms
     rl.question(`\n? Publish ${name}@${version} to ${registry}? (Y/n) default: yes `, (answer) => {
       rl.close();
-      const trimmed = answer.trim().toLowerCase();
-      // Default to true (Yes) if empty, only false if explicitly 'n' or 'no'
-      resolve(trimmed !== 'n' && trimmed !== 'no');
+      resolve(parseConfirmAnswer(answer));
     });
   });
 }
