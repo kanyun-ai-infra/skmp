@@ -207,15 +207,22 @@ describe('SkillManager', () => {
       const skillPath = path.join(skillsDir, 'test-skill');
 
       fs.mkdirSync(skillPath, { recursive: true });
+      // Create SKILL.md with version in frontmatter (sole source of metadata)
       fs.writeFileSync(
-        path.join(skillPath, 'skill.json'),
-        JSON.stringify({ name: 'test-skill', version: '1.0.0', description: 'Test skill' }),
+        path.join(skillPath, 'SKILL.md'),
+        `---
+name: test-skill
+version: 1.0.0
+description: Test skill
+---
+# Test Skill
+`,
       );
 
       const skill = skillManager.getInstalledSkill('test-skill');
       expect(skill).not.toBeNull();
       expect(skill?.name).toBe('test-skill');
-      expect(skill?.metadata?.version).toBe('1.0.0');
+      expect(skill?.version).toBe('1.0.0');
     });
 
     it('should handle skill without skill.json', () => {
@@ -530,12 +537,18 @@ describe('SkillManager bug fixes', () => {
 
   describe('getInstalledSkill() should find skills in canonical directory', () => {
     it('should find skill installed to .agents/skills/', () => {
-      // Setup: Create skill in canonical location
+      // Setup: Create skill in canonical location with SKILL.md (sole source of metadata)
       const canonicalDir = path.join(tempDir, '.agents', 'skills', 'test-skill');
       fs.mkdirSync(canonicalDir, { recursive: true });
       fs.writeFileSync(
-        path.join(canonicalDir, 'skill.json'),
-        JSON.stringify({ name: 'test-skill', version: '2.0.0' }),
+        path.join(canonicalDir, 'SKILL.md'),
+        `---
+name: test-skill
+version: 2.0.0
+description: Test skill
+---
+# Test Skill
+`,
       );
 
       // Action: Get installed skill
@@ -544,7 +557,7 @@ describe('SkillManager bug fixes', () => {
       // Assert: Skill should be found
       expect(skill).not.toBeNull();
       expect(skill?.name).toBe('test-skill');
-      expect(skill?.metadata?.version).toBe('2.0.0');
+      expect(skill?.version).toBe('2.0.0');
     });
   });
 
@@ -1055,6 +1068,94 @@ describe('SkillManager installToAgentsFromRegistry with source_type', () => {
       await expect(
         manager.installToAgents('@kanyun/broken-skill', ['cursor'])
       ).rejects.toThrow('Missing source_url');
+    });
+  });
+});
+
+// ============================================================================
+// Tests for SKILL.md as authoritative source for skill name
+// ============================================================================
+
+describe('SkillManager should use SKILL.md name as authoritative source', () => {
+  let tempDir: string;
+  let skillManager: SkillManager;
+
+  beforeEach(() => {
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'reskill-skillmd-name-test-'));
+    skillManager = new SkillManager(tempDir);
+  });
+
+  afterEach(() => {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  describe('getInstalledSkill should read metadata from SKILL.md', () => {
+    it('should use version from SKILL.md when skill.json is missing', () => {
+      // Create skill with only SKILL.md (no skill.json)
+      const skillPath = path.join(tempDir, '.agents', 'skills', 'my-skill');
+      fs.mkdirSync(skillPath, { recursive: true });
+      fs.writeFileSync(
+        path.join(skillPath, 'SKILL.md'),
+        `---
+name: my-skill
+description: A test skill
+version: 2.0.0
+---
+
+# My Skill
+
+Test content.
+`,
+      );
+
+      const skill = skillManager.getInstalledSkill('my-skill');
+      expect(skill).not.toBeNull();
+      expect(skill?.version).toBe('2.0.0');
+    });
+
+    it('should return unknown version when SKILL.md has no version', () => {
+      // Create skill with SKILL.md but no version
+      const skillPath = path.join(tempDir, '.agents', 'skills', 'no-version-skill');
+      fs.mkdirSync(skillPath, { recursive: true });
+      fs.writeFileSync(
+        path.join(skillPath, 'SKILL.md'),
+        `---
+name: no-version-skill
+description: A skill without version
+---
+
+# No Version Skill
+`,
+      );
+
+      const skill = skillManager.getInstalledSkill('no-version-skill');
+      expect(skill).not.toBeNull();
+      // SKILL.md has no version, returns 'unknown'
+      expect(skill?.version).toBe('unknown');
+    });
+  });
+
+  describe('list() should work with SKILL.md-only skills', () => {
+    it('should list skills that only have SKILL.md', () => {
+      // Create skill with only SKILL.md
+      const skillPath = path.join(tempDir, '.agents', 'skills', 'minimal-skill');
+      fs.mkdirSync(skillPath, { recursive: true });
+      fs.writeFileSync(
+        path.join(skillPath, 'SKILL.md'),
+        `---
+name: minimal-skill
+description: A minimal skill
+version: 1.0.0
+---
+
+# Minimal Skill
+`,
+      );
+
+      const skills = skillManager.list();
+      expect(skills).toHaveLength(1);
+      expect(skills[0].name).toBe('minimal-skill');
+      expect(skills[0].version).toBe('1.0.0');
     });
   });
 });

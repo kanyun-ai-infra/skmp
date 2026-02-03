@@ -165,21 +165,23 @@ function displayValidation(skill: LoadedSkill, validation: ValidationResult): vo
     logger.log('  ✗ SKILL.md not found (required)');
   }
 
-  // skill.json is optional
-  if (skill.skillJson && !skill.synthesized) {
-    logger.log('  ✓ skill.json found');
-  } else if (skill.synthesized) {
-    logger.log('  ℹ skill.json not found (using SKILL.md metadata)');
+  // All metadata comes from SKILL.md
+  if (skill.skillMd) {
+    logger.log('  ✓ Metadata loaded from SKILL.md');
   }
 
-  if (validation.valid && skill.skillJson) {
-    logger.log(`  ✓ Name: ${skill.skillJson.name}`);
-    logger.log(`  ✓ Version: ${skill.skillJson.version}`);
-    if (skill.skillJson.description) {
-      const desc =
-        skill.skillJson.description.length > 50
-          ? `${skill.skillJson.description.slice(0, 50)}...`
-          : skill.skillJson.description;
+  if (validation.valid && skill.skillMd) {
+    // All metadata from SKILL.md
+    const { name, version, description } = skill.skillMd;
+    
+    if (name) {
+      logger.log(`  ✓ Name: ${name}`);
+    }
+    if (version) {
+      logger.log(`  ✓ Version: ${version}`);
+    }
+    if (description) {
+      const desc = description.length > 50 ? `${description.slice(0, 50)}...` : description;
       logger.log(`  ✓ Description: ${desc}`);
     }
   }
@@ -256,12 +258,12 @@ function displayFiles(skillPath: string, files: string[], publisher: Publisher):
  * Display metadata
  */
 function displayMetadata(skill: LoadedSkill): void {
-  const keywords = skill.skillJson?.keywords;
-  const license = skill.skillJson?.license || skill.skillMd?.license;
-  const compatibility = skill.skillJson?.compatibility;
-  const skillMdCompatibility = skill.skillMd?.compatibility;
+  // All metadata from SKILL.md
+  const keywords = skill.skillMd?.metadata?.keywords as string[] | undefined;
+  const license = skill.skillMd?.license;
+  const compatibility = skill.skillMd?.compatibility;
 
-  if (keywords || license || compatibility || skillMdCompatibility) {
+  if (keywords || license || compatibility) {
     logger.newline();
     logger.log('Metadata:');
 
@@ -274,12 +276,15 @@ function displayMetadata(skill: LoadedSkill): void {
     }
 
     if (compatibility) {
-      const compat = Object.entries(compatibility)
-        .map(([k, v]) => `${k} ${v}`)
-        .join(', ');
-      logger.log(`  • Compatibility: ${compat}`);
-    } else if (skillMdCompatibility) {
-      logger.log(`  • Compatibility: ${skillMdCompatibility}`);
+      // compatibility can be a string or an object
+      if (typeof compatibility === 'string') {
+        logger.log(`  • Compatibility: ${compatibility}`);
+      } else {
+        const compat = Object.entries(compatibility)
+          .map(([k, v]) => `${k} ${v}`)
+          .join(', ');
+        logger.log(`  • Compatibility: ${compat}`);
+      }
     }
   }
 }
@@ -391,7 +396,8 @@ async function publishAction(skillPath: string, options: PublishOptions): Promis
 
     // 6. Build payload (only if valid)
     let payload: PublishPayload | null = null;
-    if (validation.valid && skill.skillJson) {
+    if (validation.valid && skill.skillMd && skill.skillJson) {
+      // skillJson is synthesized from SKILL.md for backward compatibility with publish API
       payload = publisher.buildPayload(
         {
           path: absolutePath,
@@ -406,15 +412,15 @@ async function publishAction(skillPath: string, options: PublishOptions): Promis
     }
 
     // 7. Display preview
+    // All metadata from SKILL.md
+    const displayName = skill.skillMd?.name || 'unknown';
+    const displayVersion = skill.skillMd?.version || '0.0.0';
+    
     logger.newline();
     if (options.dryRun) {
-      logger.log(
-        `📦 Dry run: ${skill.skillJson?.name || 'unknown'}@${skill.skillJson?.version || 'unknown'}`,
-      );
+      logger.log(`📦 Dry run: ${displayName}@${displayVersion}`);
     } else {
-      logger.log(
-        `📦 Publishing ${skill.skillJson?.name || 'unknown'}@${skill.skillJson?.version || 'unknown'}...`,
-      );
+      logger.log(`📦 Publishing ${displayName}@${displayVersion}...`);
     }
     logger.newline();
 
@@ -445,12 +451,10 @@ async function publishAction(skillPath: string, options: PublishOptions): Promis
     }
 
     // 9. Confirm publish
-    if (!options.yes && skill.skillJson) {
-      const confirmed = await confirmPublish(
-        skill.skillJson.name,
-        skill.skillJson.version,
-        registry,
-      );
+    if (!options.yes && skill.skillMd) {
+      const confirmName = skill.skillMd.name;
+      const confirmVersion = skill.skillMd.version || '0.0.0';
+      const confirmed = await confirmPublish(confirmName, confirmVersion, registry);
       if (!confirmed) {
         logger.log('Cancelled.');
         return;
@@ -475,11 +479,20 @@ async function publishAction(skillPath: string, options: PublishOptions): Promis
     const client = new RegistryClient({ registry, token });
 
     try {
-      // Get skill name with scope from registry mapping
-      const name = skill.skillJson?.name ?? '';
+      // Get skill name from SKILL.md (primary source per agentskills.io spec)
+      const name = skill.skillMd?.name;
+      if (!name) {
+        logger.error('SKILL.md must have a name field in frontmatter');
+        process.exit(1);
+      }
       const skillName = buildPublishSkillName(name, registry);
 
-      const result = await client.publish(skillName, payload!, absolutePath, { tag: options.tag });
+      if (!payload) {
+        logger.error('Failed to build publish payload');
+        process.exit(1);
+      }
+      
+      const result = await client.publish(skillName, payload, absolutePath, { tag: options.tag });
 
       if (!result.success || !result.data) {
         logger.error(result.error || 'Publish failed');
@@ -499,7 +512,7 @@ async function publishAction(skillPath: string, options: PublishOptions): Promis
       if (publishError instanceof RegistryError) {
         logger.error(`Publish failed: ${publishError.message}`);
         if (publishError.statusCode === 409) {
-          logger.log('This version already exists. Bump the version in skill.json.');
+          logger.log('This version already exists. Bump the version in SKILL.md frontmatter.');
         } else if (publishError.statusCode === 403) {
           logger.log('You do not have permission to publish this skill.');
         }

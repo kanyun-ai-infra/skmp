@@ -4,9 +4,9 @@
  * Following agentskills.io specification: https://agentskills.io/specification
  *
  * Key points:
- * - SKILL.md is REQUIRED (with name and description in frontmatter)
- * - skill.json is OPTIONAL (for additional metadata like version, keywords)
- * - Version can come from skill.json, SKILL.md metadata.version, or default to "0.0.0"
+ * - SKILL.md is the SOLE source of metadata (name, description, version, etc.)
+ * - skill.json is NOT used - all metadata comes from SKILL.md frontmatter
+ * - Version defaults to "0.0.0" if not specified in SKILL.md
  */
 
 import * as crypto from 'node:crypto';
@@ -40,14 +40,12 @@ export interface ValidationResult {
 
 export interface LoadedSkill {
   path: string;
-  /** skill.json content (may be synthesized from SKILL.md if skill.json doesn't exist) */
+  /** Skill metadata synthesized from SKILL.md (for backward compatibility with publish API) */
   skillJson: SkillJson | null;
-  /** SKILL.md parsed content */
+  /** SKILL.md parsed content (sole source of metadata) */
   skillMd: ParsedSkill | null;
   readme: string | null;
   files: string[];
-  /** Whether skillJson was synthesized from SKILL.md (no actual skill.json file) */
-  synthesized?: boolean;
 }
 
 // ============================================================================
@@ -61,7 +59,7 @@ const SINGLE_CHAR_NAME_PATTERN = /^[a-z0-9]$/;
 const DEFAULT_VERSION = '0.0.0';
 
 // Default files to include in publish
-const DEFAULT_FILES = ['skill.json', 'SKILL.md', 'README.md', 'LICENSE'];
+const DEFAULT_FILES = ['SKILL.md', 'README.md', 'LICENSE'];
 
 // ============================================================================
 // SkillValidator Class
@@ -84,7 +82,7 @@ export class SkillValidator {
       errors.push({
         field: 'name',
         message: 'Skill name is required',
-        suggestion: 'Add "name" field to skill.json',
+        suggestion: 'Add "name" field to SKILL.md frontmatter',
       });
       return { valid: false, errors, warnings: [] };
     }
@@ -159,7 +157,7 @@ export class SkillValidator {
       errors.push({
         field: 'version',
         message: 'Version is required',
-        suggestion: 'Add "version" field to skill.json (e.g., "1.0.0")',
+        suggestion: 'Add "version" field to SKILL.md frontmatter (e.g., "1.0.0")',
       });
       return { valid: false, errors, warnings: [] };
     }
@@ -168,7 +166,7 @@ export class SkillValidator {
     if (version.startsWith('v')) {
       errors.push({
         field: 'version',
-        message: 'Version should not have "v" prefix in skill.json',
+        message: 'Version should not have "v" prefix',
         suggestion: `Change "${version}" to "${version.slice(1)}"`,
       });
       return { valid: false, errors, warnings: [] };
@@ -220,9 +218,8 @@ export class SkillValidator {
    * Load skill information from directory
    *
    * Following agentskills.io specification:
-   * - SKILL.md is the primary source of metadata
-   * - skill.json is optional and provides additional metadata
-   * - If skill.json doesn't exist, synthesize it from SKILL.md
+   * - SKILL.md is the SOLE source of metadata
+   * - skillJson is synthesized from SKILL.md for backward compatibility with publish API
    */
   loadSkill(skillPath: string): LoadedSkill {
     const result: LoadedSkill = {
@@ -231,32 +228,20 @@ export class SkillValidator {
       skillMd: null,
       readme: null,
       files: [],
-      synthesized: false,
     };
 
-    // Load SKILL.md first (primary source per spec)
+    // Load SKILL.md (sole source of metadata)
     const skillMdPath = path.join(skillPath, 'SKILL.md');
     if (fs.existsSync(skillMdPath)) {
       try {
         result.skillMd = parseSkillMdFile(skillMdPath);
+        // Always synthesize skillJson from SKILL.md for backward compatibility
+        if (result.skillMd) {
+          result.skillJson = this.synthesizeSkillJson(result.skillMd);
+        }
       } catch {
         // Will be caught in validation
       }
-    }
-
-    // Load skill.json (optional)
-    const skillJsonPath = path.join(skillPath, 'skill.json');
-    if (fs.existsSync(skillJsonPath)) {
-      try {
-        const content = fs.readFileSync(skillJsonPath, 'utf-8');
-        result.skillJson = JSON.parse(content) as SkillJson;
-      } catch {
-        // Will be caught in validation
-      }
-    } else if (result.skillMd) {
-      // Synthesize skillJson from SKILL.md if skill.json doesn't exist
-      result.skillJson = this.synthesizeSkillJson(result.skillMd);
-      result.synthesized = true;
     }
 
     // Load README.md
@@ -267,8 +252,9 @@ export class SkillValidator {
       result.readme = content.slice(0, 500);
     }
 
-    // Scan files
-    result.files = this.scanFiles(skillPath, result.skillJson?.files);
+    // Scan files (use files array from SKILL.md metadata if available)
+    const filesPattern = result.skillMd?.metadata?.files as string[] | undefined;
+    result.files = this.scanFiles(skillPath, filesPattern);
 
     return result;
   }
@@ -276,17 +262,23 @@ export class SkillValidator {
   /**
    * Synthesize a SkillJson object from SKILL.md frontmatter
    *
-   * This allows publishing skills that only have SKILL.md (per agentskills.io spec)
+   * This creates a SkillJson representation from SKILL.md for backward compatibility
+   * with the publish API. All metadata comes from SKILL.md.
    */
   private synthesizeSkillJson(skillMd: ParsedSkill): SkillJson {
     // Extract version: first from top-level frontmatter, then from metadata, then default
     const version = skillMd.version || (skillMd.metadata?.version as string) || DEFAULT_VERSION;
+    // Only include keywords if it's a valid array
+    const keywords = Array.isArray(skillMd.metadata?.keywords)
+      ? (skillMd.metadata.keywords as string[])
+      : undefined;
 
     return {
       name: skillMd.name,
       version,
       description: skillMd.description,
       license: skillMd.license,
+      keywords,
       entry: 'SKILL.md',
     };
   }
@@ -312,7 +304,7 @@ export class SkillValidator {
         }
       }
 
-      // Add files from skill.json files array
+      // Add files from SKILL.md metadata.files array
       for (const pattern of includePatterns) {
         const targetPath = path.join(skillPath, pattern);
 
@@ -398,8 +390,8 @@ export class SkillValidator {
    * Validate a skill directory for publishing
    *
    * Following agentskills.io specification:
-   * - SKILL.md is REQUIRED with name and description in frontmatter
-   * - skill.json is OPTIONAL (for version, keywords, etc.)
+   * - SKILL.md is the SOLE source of metadata
+   * - name and description are REQUIRED in frontmatter
    */
   validate(skillPath: string): ValidationResult {
     const errors: ValidationError[] = [];
@@ -445,85 +437,35 @@ export class SkillValidator {
     const descResult = this.validateDescription(skillMd.description);
     errors.push(...descResult.errors);
 
-    // Check skill.json (OPTIONAL)
-    const skillJsonPath = path.join(skillPath, 'skill.json');
-    let skillJson: SkillJson | null = null;
-
-    if (fs.existsSync(skillJsonPath)) {
-      try {
-        const content = fs.readFileSync(skillJsonPath, 'utf-8');
-        skillJson = JSON.parse(content) as SkillJson;
-
-        // Validate version if provided in skill.json
-        if (skillJson.version) {
-          const versionResult = this.validateVersion(skillJson.version);
-          errors.push(...versionResult.errors);
-        }
-
-        // Check name matches between SKILL.md and skill.json
-        if (skillJson.name && skillJson.name !== skillMd.name) {
-          errors.push({
-            field: 'name',
-            message: `Name mismatch: SKILL.md has "${skillMd.name}", skill.json has "${skillJson.name}"`,
-            suggestion: 'Ensure name in SKILL.md matches skill.json',
-          });
-        }
-
-        // Warn about too many keywords
-        if (skillJson.keywords && skillJson.keywords.length > MAX_KEYWORDS) {
-          warnings.push({
-            field: 'keywords',
-            message: `Too many keywords (${skillJson.keywords.length}). Recommended max: ${MAX_KEYWORDS}`,
-          });
-        }
-
-        // Check entry file exists
-        const entry = skillJson.entry || 'SKILL.md';
-        const entryPath = path.join(skillPath, entry);
-        if (entry !== 'SKILL.md' && !fs.existsSync(entryPath)) {
-          errors.push({
-            field: 'entry',
-            message: `Entry file not found: ${entry}`,
-            suggestion: `Create ${entry} or update "entry" in skill.json`,
-          });
-        }
-      } catch (error) {
-        errors.push({
-          field: 'skill.json',
-          message: `Failed to parse skill.json: ${(error as Error).message}`,
-          suggestion: 'Check the JSON syntax is valid',
-        });
-      }
-    } else {
-      // skill.json doesn't exist - this is OK, but add info warning
+    // Check version in SKILL.md
+    const skillMdVersion = skillMd.version || (skillMd.metadata?.version as string | undefined);
+    if (!skillMdVersion) {
       warnings.push({
-        field: 'skill.json',
-        message: 'skill.json not found (optional, using SKILL.md metadata)',
-        suggestion: 'Create skill.json for additional metadata like version, keywords',
+        field: 'version',
+        message: `No version specified, defaulting to "${DEFAULT_VERSION}"`,
+        suggestion: 'Add version in SKILL.md frontmatter',
       });
+    } else {
+      // Validate the version from SKILL.md
+      const versionResult = this.validateVersion(skillMdVersion);
+      errors.push(...versionResult.errors);
+    }
 
-      // Check if version is in SKILL.md (top-level or metadata)
-      const skillMdVersion = skillMd.version || (skillMd.metadata?.version as string | undefined);
-      if (!skillMdVersion) {
-        warnings.push({
-          field: 'version',
-          message: `No version specified, defaulting to "${DEFAULT_VERSION}"`,
-          suggestion: 'Add version in SKILL.md frontmatter or skill.json',
-        });
-      } else {
-        // Validate the version from SKILL.md
-        const versionResult = this.validateVersion(skillMdVersion);
-        errors.push(...versionResult.errors);
-      }
+    // Check keywords count (only if metadata.keywords is a valid array)
+    const keywords = skillMd.metadata?.keywords;
+    if (Array.isArray(keywords) && keywords.length > MAX_KEYWORDS) {
+      warnings.push({
+        field: 'keywords',
+        message: `Too many keywords (${keywords.length}). Recommended max: ${MAX_KEYWORDS}`,
+      });
     }
 
     // Check license
-    const hasLicense = skillJson?.license || skillMd.license;
-    if (!hasLicense) {
+    if (!skillMd.license) {
       warnings.push({
         field: 'license',
         message: 'No license specified',
-        suggestion: 'Add license in SKILL.md frontmatter or skill.json',
+        suggestion: 'Add license in SKILL.md frontmatter',
       });
     }
 

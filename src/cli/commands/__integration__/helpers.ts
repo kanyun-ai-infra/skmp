@@ -4,10 +4,10 @@
  * Shared utilities for CLI integration tests
  */
 
+import { execSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { execSync } from 'node:child_process';
 
 // ============================================================================
 // Constants
@@ -37,11 +37,7 @@ export interface CliResult {
  * @param cwd - Working directory (defaults to process.cwd())
  * @param env - Additional environment variables
  */
-export function runCli(
-  args: string,
-  cwd?: string,
-  env?: Record<string, string>,
-): CliResult {
+export function runCli(args: string, cwd?: string, env?: Record<string, string>): CliResult {
   try {
     const stdout = execSync(`${CLI} ${args}`, {
       cwd: cwd || process.cwd(),
@@ -122,23 +118,30 @@ export function createMockHome(): string {
  * @param version - Skill version (default: "1.0.0")
  * @returns Git URL for the repo (file:// protocol)
  */
-export function createLocalGitRepo(
-  dir: string,
-  name: string,
-  version = '1.0.0',
-): string {
+export function createLocalGitRepo(dir: string, name: string, version = '1.0.0'): string {
   const repoDir = path.join(dir, `${name}-repo`);
   fs.mkdirSync(repoDir, { recursive: true });
 
   // Create skill files
-  fs.writeFileSync(
-    path.join(repoDir, 'skill.json'),
-    JSON.stringify({ name, version }, null, 2),
-  );
+  fs.writeFileSync(path.join(repoDir, 'skill.json'), JSON.stringify({ name, version }, null, 2));
 
+  // Create SKILL.md with proper frontmatter (per agentskills.io spec)
   fs.writeFileSync(
     path.join(repoDir, 'SKILL.md'),
-    `# ${name}\n\nA mock skill for testing.\n\n## Usage\n\nThis is a test skill version ${version}.\n`,
+    `---
+name: ${name}
+description: A mock skill for testing
+version: ${version}
+---
+
+# ${name}
+
+A mock skill for testing.
+
+## Usage
+
+This is a test skill version ${version}.
+`,
   );
 
   // Create rules directory with example file
@@ -170,6 +173,77 @@ This is an example rule for testing.
 }
 
 /**
+ * Create a local git monorepo with a skill where folder name differs from SKILL.md name
+ *
+ * This creates a monorepo structure where the skill is in a subdirectory
+ * and the folder name is different from the name in SKILL.md
+ *
+ * @param dir - Parent directory to create the repo in
+ * @param repoName - Repository name
+ * @param folderName - Skill folder name (e.g., "skill")
+ * @param skillMdName - Name in SKILL.md (e.g., "agent-aware")
+ * @param version - Skill version (default: "1.0.0")
+ * @returns Git URL for the repo with subPath (file:// protocol)
+ */
+export function createLocalMonorepoWithDifferentName(
+  dir: string,
+  repoName: string,
+  folderName: string,
+  skillMdName: string,
+  version = '1.0.0',
+): string {
+  const repoDir = path.join(dir, `${repoName}-repo`);
+  const skillDir = path.join(repoDir, folderName);
+  fs.mkdirSync(skillDir, { recursive: true });
+
+  // Create SKILL.md with skillMdName (different from folder name)
+  fs.writeFileSync(
+    path.join(skillDir, 'SKILL.md'),
+    `---
+name: ${skillMdName}
+description: A mock skill for testing monorepo installation
+version: ${version}
+---
+
+# ${skillMdName}
+
+A mock skill for testing monorepo installation.
+
+## Usage
+
+This skill folder is named "${folderName}" but SKILL.md name is "${skillMdName}".
+`,
+  );
+
+  // Create rules directory with example file
+  const rulesDir = path.join(skillDir, 'rules');
+  fs.mkdirSync(rulesDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(rulesDir, 'example.mdc'),
+    `---
+description: Example rule
+globs: ["**/*.ts"]
+---
+
+# Example Rule
+
+This is an example rule for testing.
+`,
+  );
+
+  // Initialize git repository
+  execSync('git init', { cwd: repoDir, stdio: 'pipe' });
+  execSync('git config user.email "test@test.com"', { cwd: repoDir, stdio: 'pipe' });
+  execSync('git config user.name "Test User"', { cwd: repoDir, stdio: 'pipe' });
+  execSync('git add -A', { cwd: repoDir, stdio: 'pipe' });
+  execSync(`git commit -m "Initial commit v${version}"`, { cwd: repoDir, stdio: 'pipe' });
+  execSync(`git tag v${version}`, { cwd: repoDir, stdio: 'pipe' });
+
+  // Return file:// URL with subPath
+  return `file://${repoDir}/${folderName}`;
+}
+
+/**
  * Update a local git repo with a new version
  *
  * @param repoUrl - file:// URL of the repo
@@ -184,11 +258,24 @@ export function updateLocalGitRepo(repoUrl: string, newVersion: string): void {
   skillJson.version = newVersion;
   fs.writeFileSync(skillJsonPath, JSON.stringify(skillJson, null, 2));
 
-  // Update SKILL.md
+  // Update SKILL.md with proper frontmatter
   const skillMdPath = path.join(repoDir, 'SKILL.md');
   fs.writeFileSync(
     skillMdPath,
-    `# ${skillJson.name}\n\nA mock skill for testing.\n\n## Usage\n\nThis is a test skill version ${newVersion}.\n`,
+    `---
+name: ${skillJson.name}
+description: A mock skill for testing
+version: ${newVersion}
+---
+
+# ${skillJson.name}
+
+A mock skill for testing.
+
+## Usage
+
+This is a test skill version ${newVersion}.
+`,
   );
 
   // Commit and tag
@@ -211,24 +298,30 @@ export function updateLocalGitRepo(repoUrl: string, newVersion: string): void {
  * @param version - Skill version (default: "1.0.0")
  * @returns Path to the created skill directory
  */
-export function createMockSkill(
-  dir: string,
-  name: string,
-  version = '1.0.0',
-): string {
+export function createMockSkill(dir: string, name: string, version = '1.0.0'): string {
   const skillDir = path.join(dir, name);
   fs.mkdirSync(skillDir, { recursive: true });
 
   // Create skill.json
-  fs.writeFileSync(
-    path.join(skillDir, 'skill.json'),
-    JSON.stringify({ name, version }, null, 2),
-  );
+  fs.writeFileSync(path.join(skillDir, 'skill.json'), JSON.stringify({ name, version }, null, 2));
 
-  // Create SKILL.md
+  // Create SKILL.md with proper frontmatter (per agentskills.io spec)
   fs.writeFileSync(
     path.join(skillDir, 'SKILL.md'),
-    `# ${name}\n\nA mock skill for testing.\n\n## Usage\n\nThis is a test skill.\n`,
+    `---
+name: ${name}
+description: A mock skill for testing
+version: ${version}
+---
+
+# ${name}
+
+A mock skill for testing.
+
+## Usage
+
+This is a test skill version ${version}.
+`,
   );
 
   // Create rules directory with example file
@@ -256,10 +349,7 @@ This is an example rule for testing.
  * @param skillDir - Path to the skill directory
  * @param newVersion - New version string
  */
-export function updateMockSkillVersion(
-  skillDir: string,
-  newVersion: string,
-): void {
+export function updateMockSkillVersion(skillDir: string, newVersion: string): void {
   const skillJsonPath = path.join(skillDir, 'skill.json');
   const skillJson = JSON.parse(fs.readFileSync(skillJsonPath, 'utf-8'));
   skillJson.version = newVersion;

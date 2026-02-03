@@ -183,12 +183,18 @@ describe('CLI Integration: doctor', () => {
     });
 
     it('should report installed skills count', () => {
-      // Create a skill directory
+      // Create a skill directory with SKILL.md (sole source of metadata)
       const skillDir = path.join(tempDir, '.skills', 'test-skill');
       fs.mkdirSync(skillDir, { recursive: true });
       fs.writeFileSync(
-        path.join(skillDir, 'skill.json'),
-        JSON.stringify({ name: 'test-skill', version: '1.0.0' }),
+        path.join(skillDir, 'SKILL.md'),
+        `---
+name: test-skill
+version: 1.0.0
+description: Test skill
+---
+# Test Skill
+`,
       );
 
       const { stdout, exitCode } = runCli('doctor --skip-network', tempDir);
