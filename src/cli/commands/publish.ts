@@ -420,12 +420,12 @@ async function promptForVersion(): Promise<string | null> {
   });
 
   return new Promise((resolve) => {
-    logger.warn('SKILL.md 中未指定版本号');
-    logger.log('  提示：建议在 SKILL.md frontmatter 中添加 version 字段');
+    logger.warn('No version specified in SKILL.md');
+    logger.log('  Tip: Consider adding a version field to SKILL.md frontmatter');
     logger.newline();
 
     const askVersion = (): void => {
-      rl.question('? 版本号 (例如 1.0.0，留空取消): ', (answer) => {
+      rl.question('? Version (e.g. 1.0.0, leave empty to cancel): ', (answer) => {
         const result = parseVersionInput(answer);
 
         if (result.cancelled) {
