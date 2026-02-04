@@ -70,9 +70,7 @@ function filterValidAgents(
   if (!storedAgents || storedAgents.length === 0) {
     return undefined;
   }
-  const filtered = storedAgents.filter((a) =>
-    validAgents.includes(a as AgentType),
-  ) as AgentType[];
+  const filtered = storedAgents.filter((a) => validAgents.includes(a as AgentType)) as AgentType[];
   return filtered.length > 0 ? filtered : undefined;
 }
 
@@ -176,7 +174,10 @@ async function detectAndPromptAgents(
       p.log.info('Installing to all agents (none detected)');
       return allAgentTypes;
     }
-    return await promptAgentSelection(allAgentTypes, hasStoredAgents ? storedAgents : allAgentTypes);
+    return await promptAgentSelection(
+      allAgentTypes,
+      hasStoredAgents ? storedAgents : allAgentTypes,
+    );
   }
 
   // Single agent or skip confirmation
@@ -211,10 +212,13 @@ async function promptAgentSelection(
 
   const selected = await p.multiselect({
     message: `Select agents to install skills to ${chalk.dim('(Space to toggle, Enter to confirm)')}`,
-    options: agentChoices.length > 0 ? agentChoices : Object.entries(agents).map(([key, config]) => ({
-      value: key as AgentType,
-      label: config.displayName,
-    })),
+    options:
+      agentChoices.length > 0
+        ? agentChoices
+        : Object.entries(agents).map(([key, config]) => ({
+            value: key as AgentType,
+            label: config.displayName,
+          })),
     required: true,
     initialValues: initialValues ?? availableAgents,
   });
@@ -391,7 +395,12 @@ async function installAllSkills(
   spinner.stop('Installation complete');
 
   // Show results
-  displayInstallResults(Object.keys(skills).length, targetAgents.length, totalInstalled, totalFailed);
+  displayInstallResults(
+    Object.keys(skills).length,
+    targetAgents.length,
+    totalInstalled,
+    totalFailed,
+  );
 
   // Save installation defaults
   if (totalInstalled > 0) {
@@ -496,11 +505,15 @@ async function installMultipleSkills(
   // Create install promises for all skills
   const installPromises = skills.map(async (skillRef) => {
     try {
-      const { skill: installed, results } = await skillManager.installToAgents(skillRef, targetAgents, {
-        force: options.force,
-        save: options.save !== false && !installGlobally,
-        mode: installMode,
-      });
+      const { skill: installed, results } = await skillManager.installToAgents(
+        skillRef,
+        targetAgents,
+        {
+          force: options.force,
+          save: options.save !== false && !installGlobally,
+          mode: installMode,
+        },
+      );
 
       const successful = Array.from(results.values()).filter((r) => r.success);
       if (successful.length > 0) {
@@ -596,9 +609,7 @@ function displayBatchInstallResults(
   agentCount: number,
 ): void {
   if (successfulSkills.length > 0) {
-    const resultLines = successfulSkills.map(
-      (s) => `  ${chalk.green('✓')} ${s.name}@${s.version}`,
-    );
+    const resultLines = successfulSkills.map((s) => `  ${chalk.green('✓')} ${s.name}@${s.version}`);
     p.note(
       resultLines.join('\n'),
       chalk.green(`Installed ${successfulSkills.length} skill(s) to ${agentCount} agent(s)`),
@@ -618,7 +629,16 @@ function displayBatchInstallResults(
  */
 function displaySingleSkillResults(
   installed: { name: string; version: string },
-  successful: [AgentType, { success: boolean; path: string; mode: InstallMode; canonicalPath?: string; symlinkFailed?: boolean }][],
+  successful: [
+    AgentType,
+    {
+      success: boolean;
+      path: string;
+      mode: InstallMode;
+      canonicalPath?: string;
+      symlinkFailed?: boolean;
+    },
+  ][],
   failed: [AgentType, { success: boolean; error?: string }][],
   cwd: string,
 ): void {
@@ -640,8 +660,12 @@ function displaySingleSkillResults(
         : `${installed.name}@${installed.version}`;
       resultLines.push(`${chalk.green('✓')} ${displayPath}`);
 
-      const symlinked = successful.filter(([, r]) => !r.symlinkFailed).map(([a]) => agents[a].displayName);
-      const copied = successful.filter(([, r]) => r.symlinkFailed).map(([a]) => agents[a].displayName);
+      const symlinked = successful
+        .filter(([, r]) => !r.symlinkFailed)
+        .map(([a]) => agents[a].displayName);
+      const copied = successful
+        .filter(([, r]) => r.symlinkFailed)
+        .map(([a]) => agents[a].displayName);
 
       if (symlinked.length > 0) {
         resultLines.push(`  ${chalk.dim('symlink →')} ${symlinked.join(', ')}`);
@@ -653,7 +677,9 @@ function displaySingleSkillResults(
 
     p.note(
       resultLines.join('\n'),
-      chalk.green(`Installed 1 skill to ${successful.length} agent${successful.length !== 1 ? 's' : ''}`),
+      chalk.green(
+        `Installed 1 skill to ${successful.length} agent${successful.length !== 1 ? 's' : ''}`,
+      ),
     );
 
     // Symlink failure warning
@@ -662,7 +688,9 @@ function displaySingleSkillResults(
       const copiedAgentNames = symlinkFailed.map(([a]) => agents[a].displayName);
       p.log.warn(chalk.yellow(`Symlinks failed for: ${copiedAgentNames.join(', ')}`));
       p.log.message(
-        chalk.dim('  Files were copied instead. On Windows, enable Developer Mode for symlink support.'),
+        chalk.dim(
+          '  Files were copied instead. On Windows, enable Developer Mode for symlink support.',
+        ),
       );
     }
   }

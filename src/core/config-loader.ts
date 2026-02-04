@@ -23,7 +23,9 @@ const DEFAULT_SKILLS_JSON: SkillsJson = {
  * Default values for SkillsDefaults fields
  * Note: publishRegistry has no default - must be explicitly configured
  */
-const DEFAULT_VALUES: Omit<Required<SkillsDefaults>, 'publishRegistry'> & { publishRegistry: undefined } = {
+const DEFAULT_VALUES: Omit<Required<SkillsDefaults>, 'publishRegistry'> & {
+  publishRegistry: undefined;
+} = {
   installDir: '.skills',
   targetAgents: [],
   installMode: 'symlink',
@@ -201,7 +203,9 @@ export class ConfigLoader {
    * Uses stored values if available, falls back to defaults.
    * Note: publishRegistry may be undefined (no default value).
    */
-  getDefaults(): Omit<Required<SkillsDefaults>, 'publishRegistry'> & { publishRegistry: string | undefined } {
+  getDefaults(): Omit<Required<SkillsDefaults>, 'publishRegistry'> & {
+    publishRegistry: string | undefined;
+  } {
     const config = this.getConfigOrDefault();
     const storedDefaults = config.defaults ?? {};
 

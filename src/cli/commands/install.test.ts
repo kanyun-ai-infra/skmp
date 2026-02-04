@@ -33,7 +33,10 @@ vi.mock('../../core/skill-manager.js', () => ({
       skill: { name: 'test-skill', version: '1.0.0' },
       results: new Map([
         ['cursor', { success: true, path: '/test/.cursor/skills/test-skill', mode: 'symlink' }],
-        ['claude-code', { success: true, path: '/test/.claude/skills/test-skill', mode: 'symlink' }],
+        [
+          'claude-code',
+          { success: true, path: '/test/.claude/skills/test-skill', mode: 'symlink' },
+        ],
       ]),
     }),
   })),
@@ -405,8 +408,7 @@ describe('scope selection logic', () => {
     const skipConfirm = false;
 
     // Logic: only prompt when not reinstall-all, not explicit --global, and not -y
-    const shouldShowScopePrompt =
-      optionsGlobal === undefined && !isReinstallAll && !skipConfirm;
+    const shouldShowScopePrompt = optionsGlobal === undefined && !isReinstallAll && !skipConfirm;
     expect(shouldShowScopePrompt).toBe(true);
   });
 
@@ -425,8 +427,7 @@ describe('scope selection logic', () => {
     const skipConfirm = true;
 
     // -y flag defaults to project scope
-    const shouldSkipScopePrompt =
-      optionsGlobal !== undefined || isReinstallAll || skipConfirm;
+    const shouldSkipScopePrompt = optionsGlobal !== undefined || isReinstallAll || skipConfirm;
     expect(shouldSkipScopePrompt).toBe(true);
   });
 });
@@ -491,9 +492,7 @@ describe('batch installation logic', () => {
         { ref: 'github:user/skill-d', success: false, error: 'Network timeout' },
       ];
 
-      const successfulSkills = installResults
-        .filter((r) => r.success)
-        .map((r) => r.skill!);
+      const successfulSkills = installResults.filter((r) => r.success).map((r) => r.skill!);
       const failedSkills = installResults
         .filter((r) => !r.success)
         .map((r) => ({ ref: r.ref, error: r.error! }));
@@ -512,8 +511,8 @@ describe('batch installation logic', () => {
       const hasFailures = (failedCount: number) => failedCount > 0;
 
       expect(hasFailures(0)).toBe(false); // All success → exit 0
-      expect(hasFailures(1)).toBe(true);  // Partial failure → exit 1
-      expect(hasFailures(5)).toBe(true);  // All failure → exit 1
+      expect(hasFailures(1)).toBe(true); // Partial failure → exit 1
+      expect(hasFailures(5)).toBe(true); // All failure → exit 1
     });
 
     it('should continue processing remaining skills after one fails', () => {

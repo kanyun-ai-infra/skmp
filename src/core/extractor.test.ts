@@ -183,9 +183,7 @@ describe('extractor', () => {
       const newInstallDir = path.join(tempDir, 'new-dir');
       expect(fs.existsSync(newInstallDir)).toBe(false);
 
-      const tarball = await createMockTarball('skill', [
-        { name: 'SKILL.md', content: '# Skill' },
-      ]);
+      const tarball = await createMockTarball('skill', [{ name: 'SKILL.md', content: '# Skill' }]);
 
       await extractTarballBuffer(tarball, newInstallDir);
 

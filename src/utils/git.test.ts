@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildRepoUrl,
-  getGitEnv,
-  GitCloneError,
-  getRepoNameFromUrl,
   GIT_SSH_COMMAND,
+  GitCloneError,
+  getGitEnv,
+  getRepoNameFromUrl,
   isGitUrl,
   parseGitUrl,
 } from './git.js';

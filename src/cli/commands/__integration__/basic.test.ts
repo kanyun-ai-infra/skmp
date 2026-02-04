@@ -197,10 +197,7 @@ describe('CLI Integration: info', () => {
       path.join(skillDir, 'skill.json'),
       JSON.stringify({ name: 'test-skill', version: '1.0.0' }),
     );
-    fs.writeFileSync(
-      path.join(skillDir, 'SKILL.md'),
-      '# Test Skill\n\nA test skill for testing.',
-    );
+    fs.writeFileSync(path.join(skillDir, 'SKILL.md'), '# Test Skill\n\nA test skill for testing.');
 
     const { stdout, exitCode } = runCli('info test-skill', tempDir);
     expect(exitCode).toBe(0);

@@ -578,9 +578,7 @@ export class SkillManager {
     const skillMd = this.getSkillMetadataFromDir(skillPath);
 
     // Version priority: locked > SKILL.md > 'unknown'
-    const version = isLinked
-      ? 'local'
-      : locked?.version || skillMd?.version || 'unknown';
+    const version = isLinked ? 'local' : locked?.version || skillMd?.version || 'unknown';
 
     return {
       name,

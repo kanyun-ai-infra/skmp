@@ -138,7 +138,9 @@ export class AuthManager {
     const targetRegistry = registry || this.getDefaultRegistry();
 
     if (!targetRegistry) {
-      throw new Error('No registry specified. Set RESKILL_REGISTRY environment variable or provide registry explicitly.');
+      throw new Error(
+        'No registry specified. Set RESKILL_REGISTRY environment variable or provide registry explicitly.',
+      );
     }
 
     if (!config.registries) {

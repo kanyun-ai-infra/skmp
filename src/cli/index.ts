@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
-import { Command } from 'commander';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { Command } from 'commander';
 import { logger } from '../utils/logger.js';
 import { checkForUpdate, formatUpdateMessage } from '../utils/update-notifier.js';
 import {

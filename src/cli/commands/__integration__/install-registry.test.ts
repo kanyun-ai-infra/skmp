@@ -93,7 +93,7 @@ describe('CLI Integration: install with custom registries', () => {
       const { stdout: infoStdout, exitCode: infoExitCode } = runCli('info github-skill', tempDir);
       expect(infoExitCode).toBe(0);
       expect(infoStdout).toContain('github:user/github-skill@v1.0.0');
-      
+
       const { stdout: internalStdout } = runCli('info internal-tool', tempDir);
       expect(internalStdout).toContain('internal:team/tool@v2.0.0');
     });

@@ -734,7 +734,6 @@ export function checkInstalledSkills(cwd: string): CheckResult[] {
         reason: 'missing SKILL.md',
         severity: 'error',
       });
-      continue;
     }
   }
 

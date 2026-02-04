@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import tabtab from 'tabtab';
-import { agents, type AgentType } from '../../core/agent-registry.js';
+import { type AgentType, agents } from '../../core/agent-registry.js';
 import { SkillManager } from '../../core/skill-manager.js';
 import { logger } from '../../utils/logger.js';
 
@@ -42,7 +42,6 @@ function getInstalledSkillNames(): string[] {
     return [];
   }
 }
-
 
 /**
  * Handle tab completion
@@ -109,7 +108,7 @@ function handleCompletion(): void {
   // Don't auto-complete '-' when user just typed 'install '
   if (command === 'install') {
     const { last } = env;
-    
+
     // Only complete if user has started typing an option (e.g., '-' or '--')
     if (last.startsWith('-')) {
       const options = [
@@ -126,7 +125,7 @@ function handleCompletion(): void {
       tabtab.log(options);
       return;
     }
-    
+
     // After 'install ' with no input, don't suggest anything
     // (user might want to type a skill reference)
     tabtab.log([]);

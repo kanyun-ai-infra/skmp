@@ -8,8 +8,8 @@ import {
   checkCacheDir,
   checkGitAuth,
   checkGitVersion,
-  checkInstalledSkills,
   checkInstallDir,
+  checkInstalledSkills,
   checkMonorepoVersions,
   checkNetwork,
   checkNodeVersion,
@@ -505,11 +505,14 @@ describe('doctor checks', () => {
       // skill.json with invalid JSON is ignored
       writeFileSync(join(skillsDir, 'skill.json'), 'not valid json{{{');
       // Create valid SKILL.md
-      writeFileSync(join(skillsDir, 'SKILL.md'), `---
+      writeFileSync(
+        join(skillsDir, 'SKILL.md'),
+        `---
 name: invalid-skill
 description: Test
 ---
-# Test`);
+# Test`,
+      );
 
       const results = checkInstalledSkills(testDir);
       expect(results.length).toBe(1); // Summary only
@@ -542,11 +545,14 @@ description: Test
       mkdirSync(validDir, { recursive: true });
       mkdirSync(brokenDir, { recursive: true });
       // Valid skill has SKILL.md
-      writeFileSync(join(validDir, 'SKILL.md'), `---
+      writeFileSync(
+        join(validDir, 'SKILL.md'),
+        `---
 name: valid-skill
 description: Test
 ---
-# Test`);
+# Test`,
+      );
       // brokenDir has no SKILL.md
 
       const results = checkInstalledSkills(testDir);
@@ -643,10 +649,7 @@ describe('checkRegistryConflicts', () => {
   });
 
   it('should return empty array when no registries are defined', () => {
-    writeFileSync(
-      join(testDir, 'skills.json'),
-      JSON.stringify({ skills: {} }),
-    );
+    writeFileSync(join(testDir, 'skills.json'), JSON.stringify({ skills: {} }));
     const results = checkRegistryConflicts(testDir);
     expect(results).toEqual([]);
   });
@@ -720,10 +723,7 @@ describe('checkInstallDir', () => {
   });
 
   it('should return null when no installDir is set', () => {
-    writeFileSync(
-      join(testDir, 'skills.json'),
-      JSON.stringify({ skills: {} }),
-    );
+    writeFileSync(join(testDir, 'skills.json'), JSON.stringify({ skills: {} }));
     const result = checkInstallDir(testDir);
     expect(result).toBeNull();
   });
@@ -802,10 +802,7 @@ describe('checkTargetAgents', () => {
   });
 
   it('should return empty array when no targetAgents is set', () => {
-    writeFileSync(
-      join(testDir, 'skills.json'),
-      JSON.stringify({ skills: {} }),
-    );
+    writeFileSync(join(testDir, 'skills.json'), JSON.stringify({ skills: {} }));
     const results = checkTargetAgents(testDir);
     expect(results).toEqual([]);
   });

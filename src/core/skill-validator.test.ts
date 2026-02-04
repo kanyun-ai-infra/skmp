@@ -312,9 +312,9 @@ description: A skill with uppercase name
 
         const result = validator.validate(tempDir);
         expect(result.valid).toBe(false);
-        expect(result.errors.some((e) => e.field === 'name' && e.message.includes('lowercase'))).toBe(
-          true,
-        );
+        expect(
+          result.errors.some((e) => e.field === 'name' && e.message.includes('lowercase')),
+        ).toBe(true);
       });
 
       it('should fail when SKILL.md name starts with hyphen', () => {
@@ -355,7 +355,7 @@ description: Use <tool> for tasks
 
     describe('skill.json is ignored (SKILL.md is sole source)', () => {
       it('should ignore skill.json entirely and only use SKILL.md', () => {
-        createValidSkillMd();  // Creates name: 'my-skill', description: 'A helpful skill'
+        createValidSkillMd(); // Creates name: 'my-skill', description: 'A helpful skill'
         createSkillJson({
           name: 'different-name',
           version: '99.0.0',
@@ -369,9 +369,9 @@ description: Use <tool> for tasks
 
         // Verify loaded data comes from SKILL.md, not skill.json
         const skill = validator.loadSkill(tempDir);
-        expect(skill.skillJson?.name).toBe('my-skill');  // From SKILL.md
-        expect(skill.skillJson?.version).toBe('0.0.0');  // Default version, not 99.0.0
-        expect(skill.skillJson?.description).toBe('A helpful skill');  // From SKILL.md
+        expect(skill.skillJson?.name).toBe('my-skill'); // From SKILL.md
+        expect(skill.skillJson?.version).toBe('0.0.0'); // Default version, not 99.0.0
+        expect(skill.skillJson?.description).toBe('A helpful skill'); // From SKILL.md
       });
 
       it('should pass even if skill.json has invalid JSON', () => {

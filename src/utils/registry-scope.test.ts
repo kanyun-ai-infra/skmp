@@ -6,14 +6,14 @@
 
 import { describe, expect, it } from 'vitest';
 import {
-  getScopeForRegistry,
+  buildFullSkillName,
   getRegistryForScope,
   getRegistryUrl,
-  PUBLIC_REGISTRY,
-  parseSkillName,
-  parseSkillIdentifier,
-  buildFullSkillName,
+  getScopeForRegistry,
   getShortName,
+  PUBLIC_REGISTRY,
+  parseSkillIdentifier,
+  parseSkillName,
 } from './registry-scope.js';
 
 describe('registry-scope', () => {
@@ -236,7 +236,9 @@ describe('registry-scope', () => {
 
   describe('buildFullSkillName', () => {
     it('should combine scope and name', () => {
-      expect(buildFullSkillName('@kanyun', 'planning-with-files')).toBe('@kanyun/planning-with-files');
+      expect(buildFullSkillName('@kanyun', 'planning-with-files')).toBe(
+        '@kanyun/planning-with-files',
+      );
     });
 
     it('should return name only if scope is null', () => {

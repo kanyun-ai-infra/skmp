@@ -109,10 +109,11 @@ export class Publisher {
 
     // Get current branch
     try {
-      info.currentBranch = execSync('git branch --show-current', {
-        cwd: skillPath,
-        encoding: 'utf-8',
-      }).trim() || null;
+      info.currentBranch =
+        execSync('git branch --show-current', {
+          cwd: skillPath,
+          encoding: 'utf-8',
+        }).trim() || null;
     } catch {
       // Detached HEAD or other error
     }

@@ -9,10 +9,10 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
-  detectInstallDirectory,
-  ensureInstallDirectory,
   checkConflict,
   DEFAULT_SKILLS_DIR,
+  detectInstallDirectory,
+  ensureInstallDirectory,
 } from './install-directory.js';
 
 describe('install-directory', () => {
@@ -191,9 +191,7 @@ describe('install-directory', () => {
       const installDir = path.join(projectDir, '.claude/skills');
       const skillName = 'planning-with-files';
 
-      await expect(checkConflict(installDir, skillName)).rejects.toThrow(
-        /already exists/,
-      );
+      await expect(checkConflict(installDir, skillName)).rejects.toThrow(/already exists/);
 
       // 清理
       fs.rmSync(projectDir, { recursive: true, force: true });
@@ -266,9 +264,7 @@ describe('install-directory', () => {
       const installDir = path.join(projectDir, '.cursor/skills');
       const skillName = 'cursor-skill';
 
-      await expect(checkConflict(installDir, skillName)).rejects.toThrow(
-        /already exists/,
-      );
+      await expect(checkConflict(installDir, skillName)).rejects.toThrow(/already exists/);
 
       // 清理
       fs.rmSync(projectDir, { recursive: true, force: true });

@@ -16,18 +16,18 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { RegistryClient } from '../../../core/registry-client.js';
 import { extractTarballBuffer } from '../../../core/extractor.js';
 import {
+  checkConflict,
   detectInstallDirectory,
   ensureInstallDirectory,
-  checkConflict,
   getSkillInstallPath,
 } from '../../../core/install-directory.js';
+import { RegistryClient } from '../../../core/registry-client.js';
 import {
-  parseSkillIdentifier,
   getRegistryUrl,
   getShortName,
+  parseSkillIdentifier,
 } from '../../../utils/registry-scope.js';
 
 // 测试配置
@@ -173,11 +173,13 @@ describe('Install from npm-style Registry', () => {
   // ============================================================================
 
   describe('Complete install flow (requires registry)', () => {
-    it('should download skill and verify integrity', async () => {
-      if (!registryAvailable) {
-        console.log('Skipping: registry not available');
-        return;
-      }
+    it(
+      'should download skill and verify integrity',
+      async () => {
+        if (!registryAvailable) {
+          console.log('Skipping: registry not available');
+          return;
+        }
         const client = new RegistryClient({ registry: REGISTRY_URL });
         const { scope, name, version } = parseSkillIdentifier(TEST_SKILL);
 
@@ -207,11 +209,13 @@ describe('Install from npm-style Registry', () => {
       { timeout: 30000 },
     );
 
-    it('should extract tarball to installation directory', async () => {
-      if (!registryAvailable) {
-        console.log('Skipping: registry not available');
-        return;
-      }
+    it(
+      'should extract tarball to installation directory',
+      async () => {
+        if (!registryAvailable) {
+          console.log('Skipping: registry not available');
+          return;
+        }
         const client = new RegistryClient({ registry: REGISTRY_URL });
         const { scope, name } = parseSkillIdentifier(TEST_SKILL);
         const shortName = getShortName(`${scope}/${name}`);
@@ -247,11 +251,13 @@ describe('Install from npm-style Registry', () => {
       { timeout: 30000 },
     );
 
-    it('should complete full install flow', async () => {
-      if (!registryAvailable) {
-        console.log('Skipping: registry not available');
-        return;
-      }
+    it(
+      'should complete full install flow',
+      async () => {
+        if (!registryAvailable) {
+          console.log('Skipping: registry not available');
+          return;
+        }
         // 完整流程测试
         const identifier = TEST_SKILL;
         const { scope, name, version } = parseSkillIdentifier(identifier);
@@ -314,7 +320,9 @@ describe('Install from npm-style Registry', () => {
       }
       const client = new RegistryClient({ registry: REGISTRY_URL });
 
-      await expect(client.resolveVersion('@kanyun/non-existent-skill-xyz', 'latest')).rejects.toThrow();
+      await expect(
+        client.resolveVersion('@kanyun/non-existent-skill-xyz', 'latest'),
+      ).rejects.toThrow();
     });
 
     it('should handle non-existent version', async () => {

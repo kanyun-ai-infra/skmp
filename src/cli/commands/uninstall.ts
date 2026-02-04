@@ -36,7 +36,9 @@ export const uninstallCommand = new Command('uninstall')
     });
 
     const allAgentTypes = Object.keys(agents) as AgentType[];
-    const installedAgents = allAgentTypes.filter((agent) => installer.isInstalled(skillName, agent));
+    const installedAgents = allAgentTypes.filter((agent) =>
+      installer.isInstalled(skillName, agent),
+    );
     const isInCanonical = installer.isInstalledInCanonical(skillName);
 
     if (installedAgents.length === 0 && !isInCanonical) {
@@ -56,9 +58,7 @@ export const uninstallCommand = new Command('uninstall')
     if (isInCanonical && installedAgents.length === 0) {
       summaryLines.push(`  ${chalk.dim('→')} Canonical location only`);
     }
-    summaryLines.push(
-      `  ${chalk.dim('Scope:')} ${isGlobal ? 'Global' : 'Project'}`,
-    );
+    summaryLines.push(`  ${chalk.dim('Scope:')} ${isGlobal ? 'Global' : 'Project'}`);
 
     p.note(summaryLines.join('\n'), 'Uninstallation Summary');
 

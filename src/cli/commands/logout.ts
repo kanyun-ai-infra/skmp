@@ -50,7 +50,10 @@ async function logoutAction(options: LogoutOptions): Promise<void> {
 
 export const logoutCommand = new Command('logout')
   .description('Log out from a reskill registry')
-  .option('-r, --registry <url>', 'Registry URL (or set RESKILL_REGISTRY env var, or defaults.publishRegistry in skills.json)')
+  .option(
+    '-r, --registry <url>',
+    'Registry URL (or set RESKILL_REGISTRY env var, or defaults.publishRegistry in skills.json)',
+  )
   .action(logoutAction);
 
 export default logoutCommand;

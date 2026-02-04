@@ -53,9 +53,9 @@ describe('HTTP utilities', () => {
       const { downloadFile } = await import('./http.js');
       const destPath = path.join(tempDir, 'test.tar.gz');
 
-      await expect(downloadFile('https://invalid-host-that-does-not-exist.test/file.tar.gz', destPath))
-        .rejects
-        .toThrow(HttpDownloadError);
+      await expect(
+        downloadFile('https://invalid-host-that-does-not-exist.test/file.tar.gz', destPath),
+      ).rejects.toThrow(HttpDownloadError);
     });
   });
 
@@ -67,9 +67,9 @@ describe('HTTP utilities', () => {
 
       fs.writeFileSync(archivePath, 'test content');
 
-      await expect(extractArchive(archivePath, destDir))
-        .rejects
-        .toThrow('Unable to detect archive format');
+      await expect(extractArchive(archivePath, destDir)).rejects.toThrow(
+        'Unable to detect archive format',
+      );
     });
   });
 });

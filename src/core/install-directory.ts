@@ -7,7 +7,7 @@
 
 import { existsSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { agents, type AgentType } from './agent-registry.js';
+import { type AgentType, agents } from './agent-registry.js';
 
 /**
  * Default skills directory when no AI tool is detected

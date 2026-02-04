@@ -164,19 +164,21 @@ export class GitResolver {
     let subPath: string | undefined;
 
     // Check for GitHub/GitLab web URL format: https://github.com/user/repo/tree/branch/path
-    const webUrlMatch = ref.match(/^(https?:\/\/[^/]+)\/([^/]+)\/([^/]+)\/(tree|blob|raw)\/([^/]+)(?:\/(.+))?$/);
+    const webUrlMatch = ref.match(
+      /^(https?:\/\/[^/]+)\/([^/]+)\/([^/]+)\/(tree|blob|raw)\/([^/]+)(?:\/(.+))?$/,
+    );
     if (webUrlMatch) {
       const [, baseUrl, owner, repo, , branch, path] = webUrlMatch;
-      
+
       // Build standard Git URL
       gitUrl = `${baseUrl}/${owner}/${repo}.git`;
-      
+
       // Extract branch as version
       version = `branch:${branch}`;
-      
+
       // Extract subpath
       subPath = path;
-      
+
       return {
         registry: new URL(baseUrl).hostname,
         owner,

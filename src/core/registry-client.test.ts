@@ -285,7 +285,11 @@ describe('RegistryClient', () => {
       fs.writeFileSync(path.join(tempDir, 'SKILL.md'), '# Test Skill');
       fs.writeFileSync(path.join(tempDir, 'examples.md'), '# Examples');
 
-      const tarball = await client.createTarball(tempDir, ['SKILL.md', 'examples.md'], 'planning-with-files');
+      const tarball = await client.createTarball(
+        tempDir,
+        ['SKILL.md', 'examples.md'],
+        'planning-with-files',
+      );
       const entries = await extractTarballEntries(tarball);
 
       expect(entries).toContain('planning-with-files/SKILL.md');
@@ -299,7 +303,7 @@ describe('RegistryClient', () => {
       const entries = await extractTarballEntries(tarball);
 
       // 不应包含任何带 @ 的路径
-      expect(entries.some(e => e.includes('@'))).toBe(false);
+      expect(entries.some((e) => e.includes('@'))).toBe(false);
       expect(entries).toContain('my-skill/SKILL.md');
     });
 
@@ -309,7 +313,11 @@ describe('RegistryClient', () => {
       fs.writeFileSync(path.join(tempDir, 'SKILL.md'), '# Test Skill');
       fs.writeFileSync(path.join(tempDir, 'scripts', 'init.sh'), '#!/bin/bash');
 
-      const tarball = await client.createTarball(tempDir, ['SKILL.md', 'scripts/init.sh'], 'my-skill');
+      const tarball = await client.createTarball(
+        tempDir,
+        ['SKILL.md', 'scripts/init.sh'],
+        'my-skill',
+      );
       const entries = await extractTarballEntries(tarball);
 
       expect(entries).toContain('my-skill/SKILL.md');

@@ -246,7 +246,9 @@ describe('GitResolver', () => {
       });
 
       it('should parse GitHub web URL with tree/branch/path', () => {
-        const result = resolver.parseRef('https://github.com/vercel-labs/agent-skills/tree/main/skills/frontend-design');
+        const result = resolver.parseRef(
+          'https://github.com/vercel-labs/agent-skills/tree/main/skills/frontend-design',
+        );
         expect(result).toEqual({
           registry: 'github.com',
           owner: 'vercel-labs',
@@ -391,7 +393,11 @@ describe('GitResolver', () => {
 
     it('should prioritize resolver function over custom registries', () => {
       const customResolver = () => 'https://from-resolver.com';
-      const resolver = new GitResolver('github', { internal: 'https://from-config.com' }, customResolver);
+      const resolver = new GitResolver(
+        'github',
+        { internal: 'https://from-config.com' },
+        customResolver,
+      );
       expect(resolver.getRegistryUrl('internal')).toBe('https://from-resolver.com');
     });
 

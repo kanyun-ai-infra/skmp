@@ -254,7 +254,9 @@ describe('CacheManager', () => {
     /**
      * Helper to create a local git monorepo for testing
      */
-    function createLocalMonorepo(skills: Array<{ name: string; version: string; subPath: string }>): string {
+    function createLocalMonorepo(
+      skills: Array<{ name: string; version: string; subPath: string }>,
+    ): string {
       const repoPath = path.join(repoDir, 'monorepo');
       fs.mkdirSync(repoPath, { recursive: true });
 
@@ -339,8 +341,9 @@ describe('CacheManager', () => {
         raw: `${repoUrl}/skills/nonexistent`,
       };
 
-      await expect(cacheManager.cache(repoUrl, parsed, 'main', 'v1.0.0'))
-        .rejects.toThrow(/not found/i);
+      await expect(cacheManager.cache(repoUrl, parsed, 'main', 'v1.0.0')).rejects.toThrow(
+        /not found/i,
+      );
     });
 
     it('should handle deeply nested subPaths', async () => {

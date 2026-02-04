@@ -47,11 +47,15 @@ describe('HttpResolver', () => {
     // 新增：排除 GitHub/GitLab web URL
     it('should return false for GitHub web URLs with /tree/', () => {
       expect(HttpResolver.isHttpUrl('https://github.com/user/repo/tree/main')).toBe(false);
-      expect(HttpResolver.isHttpUrl('https://github.com/user/repo/tree/main/skills/planning')).toBe(false);
+      expect(HttpResolver.isHttpUrl('https://github.com/user/repo/tree/main/skills/planning')).toBe(
+        false,
+      );
     });
 
     it('should return false for GitHub web URLs with /blob/', () => {
-      expect(HttpResolver.isHttpUrl('https://github.com/user/repo/blob/main/README.md')).toBe(false);
+      expect(HttpResolver.isHttpUrl('https://github.com/user/repo/blob/main/README.md')).toBe(
+        false,
+      );
     });
 
     it('should return false for GitHub web URLs with /raw/', () => {
@@ -95,7 +99,9 @@ describe('HttpResolver', () => {
     });
 
     it('should parse Aliyun OSS URL', () => {
-      const result = resolver.parseUrl('https://bucket.oss-cn-hangzhou.aliyuncs.com/path/skill.tar.gz');
+      const result = resolver.parseUrl(
+        'https://bucket.oss-cn-hangzhou.aliyuncs.com/path/skill.tar.gz',
+      );
 
       expect(result.host).toBe('bucket.oss-cn-hangzhou.aliyuncs.com');
       expect(result.skillName).toBe('skill');

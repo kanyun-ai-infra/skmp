@@ -43,17 +43,13 @@ describe('login command', () => {
     });
 
     it('registry option should accept a URL argument', () => {
-      const registryOption = loginCommand.options.find(
-        (opt) => opt.long === '--registry',
-      );
+      const registryOption = loginCommand.options.find((opt) => opt.long === '--registry');
       // The flags contain <url> which indicates it takes an argument
       expect(registryOption?.flags).toContain('<url>');
     });
 
     it('token option should accept a token argument', () => {
-      const tokenOption = loginCommand.options.find(
-        (opt) => opt.long === '--token',
-      );
+      const tokenOption = loginCommand.options.find((opt) => opt.long === '--token');
       // The flags contain <token> which indicates it takes an argument
       expect(tokenOption?.flags).toContain('<token>');
     });
@@ -71,30 +67,22 @@ describe('login command', () => {
     });
 
     it('registry option should have correct short flag', () => {
-      const registryOption = loginCommand.options.find(
-        (opt) => opt.long === '--registry',
-      );
+      const registryOption = loginCommand.options.find((opt) => opt.long === '--registry');
       expect(registryOption?.short).toBe('-r');
     });
 
     it('token option should have correct short flag', () => {
-      const tokenOption = loginCommand.options.find(
-        (opt) => opt.long === '--token',
-      );
+      const tokenOption = loginCommand.options.find((opt) => opt.long === '--token');
       expect(tokenOption?.short).toBe('-t');
     });
 
     it('registry option description should mention environment variable', () => {
-      const registryOption = loginCommand.options.find(
-        (opt) => opt.long === '--registry',
-      );
+      const registryOption = loginCommand.options.find((opt) => opt.long === '--registry');
       expect(registryOption?.description).toContain('RESKILL_REGISTRY');
     });
 
     it('token option description should mention Web UI', () => {
-      const tokenOption = loginCommand.options.find(
-        (opt) => opt.long === '--token',
-      );
+      const tokenOption = loginCommand.options.find((opt) => opt.long === '--token');
       // Token-only login: description should mention Web UI
       expect(tokenOption?.description).toContain('Web UI');
     });
@@ -108,9 +96,7 @@ describe('login command', () => {
     it('token option should indicate it is required', () => {
       // After removing email/password login, token should be the only way to login
       // The --token option description should indicate it's required
-      const tokenOption = loginCommand.options.find(
-        (opt) => opt.long === '--token',
-      );
+      const tokenOption = loginCommand.options.find((opt) => opt.long === '--token');
       expect(tokenOption).toBeDefined();
       // Description should indicate it's required
       expect(tokenOption?.description?.toLowerCase()).toContain('required');

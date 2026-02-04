@@ -50,10 +50,7 @@ describe('resolveRegistry', () => {
         publishRegistry: 'https://config-registry.example.com',
       },
     };
-    fs.writeFileSync(
-      path.join(tempDir, 'skills.json'),
-      JSON.stringify(skillsJson, null, 2),
-    );
+    fs.writeFileSync(path.join(tempDir, 'skills.json'), JSON.stringify(skillsJson, null, 2));
 
     const result = resolveRegistry(undefined, tempDir);
     expect(result).toBe('https://config-registry.example.com');
@@ -67,10 +64,7 @@ describe('resolveRegistry', () => {
         publishRegistry: 'https://config-registry.example.com',
       },
     };
-    fs.writeFileSync(
-      path.join(tempDir, 'skills.json'),
-      JSON.stringify(skillsJson, null, 2),
-    );
+    fs.writeFileSync(path.join(tempDir, 'skills.json'), JSON.stringify(skillsJson, null, 2));
 
     const result = resolveRegistry(undefined, tempDir);
     expect(result).toBe('https://env-registry.example.com');

@@ -60,7 +60,7 @@ describe('CLI Integration: update', () => {
     // Note: These tests require network access to check remote git commits.
     // They use fake GitHub refs that don't exist, so they will show "No skills to update"
     // or connection errors. The actual update functionality is covered by unit tests.
-    
+
     it.skip('should attempt to update skills from skills.json (requires network)', () => {
       runCli('init -y', tempDir);
 

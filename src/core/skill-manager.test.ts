@@ -757,10 +757,7 @@ describe('SkillManager with custom registries', () => {
         enterprise: 'https://git.enterprise.io',
       },
     };
-    fs.writeFileSync(
-      path.join(tempDir, 'skills.json'),
-      JSON.stringify(initialConfig, null, 2),
-    );
+    fs.writeFileSync(path.join(tempDir, 'skills.json'), JSON.stringify(initialConfig, null, 2));
 
     // Create SkillManager
     const manager = new SkillManager(tempDir);
@@ -901,7 +898,7 @@ describe('SkillManager installToAgentsFromRegistry with source_type', () => {
 
       // 尝试安装带版本号的 skill
       await expect(
-        manager.installToAgents('@kanyun/github-skill@1.0.0', ['cursor'])
+        manager.installToAgents('@kanyun/github-skill@1.0.0', ['cursor']),
       ).rejects.toThrow('Version specifier not supported for web-published skills');
     });
 
@@ -914,7 +911,7 @@ describe('SkillManager installToAgentsFromRegistry with source_type', () => {
       });
 
       await expect(
-        manager.installToAgents('@kanyun/local-skill@2.0.0', ['cursor'])
+        manager.installToAgents('@kanyun/local-skill@2.0.0', ['cursor']),
       ).rejects.toThrow('Version specifier not supported for web-published skills');
     });
 
@@ -926,14 +923,13 @@ describe('SkillManager installToAgentsFromRegistry with source_type', () => {
         source_url: 'https://github.com/user/repo/tree/main/skills/my-skill',
       });
 
-      // Mock installToAgentsFromGit 
-      const installFromGitSpy = vi.spyOn(
-        manager as unknown as { installToAgentsFromGit: Function },
-        'installToAgentsFromGit'
-      ).mockResolvedValue({
-        skill: { name: 'my-skill', path: '/tmp/skill', version: '1.0.0', source: 'github' },
-        results: new Map([['cursor', { success: true, path: '/tmp', mode: 'symlink' }]]),
-      });
+      // Mock installToAgentsFromGit
+      const installFromGitSpy = vi
+        .spyOn(manager as unknown as { installToAgentsFromGit: Function }, 'installToAgentsFromGit')
+        .mockResolvedValue({
+          skill: { name: 'my-skill', path: '/tmp/skill', version: '1.0.0', source: 'github' },
+          results: new Map([['cursor', { success: true, path: '/tmp', mode: 'symlink' }]]),
+        });
 
       // @latest 应该被允许
       await manager.installToAgents('@kanyun/github-skill@latest', ['cursor']);
@@ -952,13 +948,12 @@ describe('SkillManager installToAgentsFromRegistry with source_type', () => {
       });
 
       // Mock installToAgentsFromGit
-      const installFromGitSpy = vi.spyOn(
-        manager as unknown as { installToAgentsFromGit: Function },
-        'installToAgentsFromGit'
-      ).mockResolvedValue({
-        skill: { name: 'my-skill', path: '/tmp/skill', version: '1.0.0', source: 'github' },
-        results: new Map([['cursor', { success: true, path: '/tmp', mode: 'symlink' }]]),
-      });
+      const installFromGitSpy = vi
+        .spyOn(manager as unknown as { installToAgentsFromGit: Function }, 'installToAgentsFromGit')
+        .mockResolvedValue({
+          skill: { name: 'my-skill', path: '/tmp/skill', version: '1.0.0', source: 'github' },
+          results: new Map([['cursor', { success: true, path: '/tmp', mode: 'symlink' }]]),
+        });
 
       await manager.installToAgents('@kanyun/github-skill', ['cursor']);
 
@@ -966,7 +961,7 @@ describe('SkillManager installToAgentsFromRegistry with source_type', () => {
       expect(installFromGitSpy).toHaveBeenCalledWith(
         'https://github.com/user/repo/tree/main/skills/my-skill',
         ['cursor'],
-        expect.any(Object)
+        expect.any(Object),
       );
     });
 
@@ -979,20 +974,22 @@ describe('SkillManager installToAgentsFromRegistry with source_type', () => {
       });
 
       // Mock installToAgentsFromHttp
-      const installFromHttpSpy = vi.spyOn(
-        manager as unknown as { installToAgentsFromHttp: Function },
-        'installToAgentsFromHttp'
-      ).mockResolvedValue({
-        skill: { name: 'oss-skill', path: '/tmp/skill', version: '1.0.0', source: 'oss' },
-        results: new Map([['cursor', { success: true, path: '/tmp', mode: 'symlink' }]]),
-      });
+      const installFromHttpSpy = vi
+        .spyOn(
+          manager as unknown as { installToAgentsFromHttp: Function },
+          'installToAgentsFromHttp',
+        )
+        .mockResolvedValue({
+          skill: { name: 'oss-skill', path: '/tmp/skill', version: '1.0.0', source: 'oss' },
+          results: new Map([['cursor', { success: true, path: '/tmp', mode: 'symlink' }]]),
+        });
 
       await manager.installToAgents('@kanyun/oss-skill', ['cursor']);
 
       expect(installFromHttpSpy).toHaveBeenCalledWith(
         'https://bucket.oss.com/skill.tgz',
         ['cursor'],
-        expect.any(Object)
+        expect.any(Object),
       );
     });
 
@@ -1004,9 +1001,15 @@ describe('SkillManager installToAgentsFromRegistry with source_type', () => {
       });
 
       // Mock RegistryResolver
-      const registryResolver = (manager as unknown as { registryResolver: RegistryResolver }).registryResolver;
+      const registryResolver = (manager as unknown as { registryResolver: RegistryResolver })
+        .registryResolver;
       vi.spyOn(registryResolver, 'resolve').mockResolvedValue({
-        parsed: { scope: '@kanyun', name: 'cli-skill', version: '1.0.0', fullName: '@kanyun/cli-skill' },
+        parsed: {
+          scope: '@kanyun',
+          name: 'cli-skill',
+          version: '1.0.0',
+          fullName: '@kanyun/cli-skill',
+        },
         shortName: 'cli-skill',
         version: '1.0.0',
         registryUrl: 'https://registry.example.com/',
@@ -1034,9 +1037,15 @@ describe('SkillManager installToAgentsFromRegistry with source_type', () => {
       });
 
       // Mock RegistryResolver
-      const registryResolver = (manager as unknown as { registryResolver: RegistryResolver }).registryResolver;
+      const registryResolver = (manager as unknown as { registryResolver: RegistryResolver })
+        .registryResolver;
       vi.spyOn(registryResolver, 'resolve').mockResolvedValue({
-        parsed: { scope: '@kanyun', name: 'old-skill', version: '1.0.0', fullName: '@kanyun/old-skill' },
+        parsed: {
+          scope: '@kanyun',
+          name: 'old-skill',
+          version: '1.0.0',
+          fullName: '@kanyun/old-skill',
+        },
         shortName: 'old-skill',
         version: '1.0.0',
         registryUrl: 'https://registry.example.com/',
@@ -1065,9 +1074,9 @@ describe('SkillManager installToAgentsFromRegistry with source_type', () => {
         // source_url 缺失
       });
 
-      await expect(
-        manager.installToAgents('@kanyun/broken-skill', ['cursor'])
-      ).rejects.toThrow('Missing source_url');
+      await expect(manager.installToAgents('@kanyun/broken-skill', ['cursor'])).rejects.toThrow(
+        'Missing source_url',
+      );
     });
   });
 });

@@ -109,9 +109,7 @@ describe('CLI Integration: install -g (global)', () => {
       runCli('uninstall test-skill -g -y', tempDir, { HOME: mockHome });
 
       // Global should be removed
-      expect(
-        pathExists(path.join(mockHome, '.cursor', 'skills', 'test-skill')),
-      ).toBe(false);
+      expect(pathExists(path.join(mockHome, '.cursor', 'skills', 'test-skill'))).toBe(false);
 
       // Project should still exist
       expect(pathExists(path.join(tempDir, '.skills', 'test-skill'))).toBe(true);

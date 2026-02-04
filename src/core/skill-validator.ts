@@ -14,7 +14,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as semver from 'semver';
 import type { SkillJson } from '../types/index.js';
-import { parseSkillMdFile, type ParsedSkill } from './skill-parser.js';
+import { type ParsedSkill, parseSkillMdFile } from './skill-parser.js';
 
 // ============================================================================
 // Types
@@ -366,7 +366,12 @@ export class SkillValidator {
   /**
    * Recursively add files from directory
    */
-  private addFilesFromDir(basePath: string, dirPath: string, files: string[], seen: Set<string>): void {
+  private addFilesFromDir(
+    basePath: string,
+    dirPath: string,
+    files: string[],
+    seen: Set<string>,
+  ): void {
     const fullPath = dirPath ? path.join(basePath, dirPath) : basePath;
     const entries = fs.readdirSync(fullPath, { withFileTypes: true });
 
@@ -416,7 +421,8 @@ export class SkillValidator {
         errors.push({
           field: 'SKILL.md',
           message: 'SKILL.md must have valid YAML frontmatter with name and description',
-          suggestion: 'Add frontmatter: ---\\nname: your-skill\\ndescription: Your description\\n---',
+          suggestion:
+            'Add frontmatter: ---\\nname: your-skill\\ndescription: Your description\\n---',
         });
         return { valid: false, errors, warnings };
       }

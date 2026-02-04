@@ -2,9 +2,9 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import * as path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { getShortName } from '../utils/registry-scope.js';
 import type { AgentType } from './agent-registry.js';
 import { Installer } from './installer.js';
-import { getShortName } from '../utils/registry-scope.js';
 
 describe('Installer', () => {
   let tempDir: string;
@@ -489,7 +489,11 @@ This is test content.
     });
 
     it('should ignore installDir in global mode', () => {
-      const globalInstaller = new Installer({ cwd: tempDir, global: true, installDir: '.custom-dir' });
+      const globalInstaller = new Installer({
+        cwd: tempDir,
+        global: true,
+        installDir: '.custom-dir',
+      });
       const canonicalPath = globalInstaller.getCanonicalPath('test-skill');
 
       // Global mode should use home directory, not custom installDir

@@ -65,9 +65,7 @@ describe('CLI Integration: uninstall', () => {
     it('should uninstall skill from canonical location', () => {
       // Create skill in canonical location
       createMockSkill(path.join(tempDir, '.agents', 'skills'), 'test-skill');
-      expect(
-        pathExists(path.join(tempDir, '.agents', 'skills', 'test-skill')),
-      ).toBe(true);
+      expect(pathExists(path.join(tempDir, '.agents', 'skills', 'test-skill'))).toBe(true);
 
       // Uninstall
       const { exitCode, stdout } = runCli('uninstall test-skill -y', tempDir);
@@ -75,9 +73,7 @@ describe('CLI Integration: uninstall', () => {
       expect(stdout).toContain('test-skill');
 
       // Verify removed
-      expect(
-        pathExists(path.join(tempDir, '.agents', 'skills', 'test-skill')),
-      ).toBe(false);
+      expect(pathExists(path.join(tempDir, '.agents', 'skills', 'test-skill'))).toBe(false);
     });
 
     it('should also remove symlinks in agent directories', () => {
@@ -155,9 +151,7 @@ describe('CLI Integration: uninstall', () => {
       // Verify only the uninstalled skill was removed
       const config = readSkillsJson(tempDir);
       expect(config.skills['skill-to-remove']).toBeUndefined();
-      expect(config.skills['skill-to-keep']).toBe(
-        'github:test/skill-to-keep@v1.0.0',
-      );
+      expect(config.skills['skill-to-keep']).toBe('github:test/skill-to-keep@v1.0.0');
     });
   });
 
@@ -175,9 +169,7 @@ describe('CLI Integration: uninstall', () => {
     it('should uninstall globally installed skill', () => {
       // Create global skill
       createMockSkill(path.join(mockHome, '.cursor', 'skills'), 'global-skill');
-      expect(
-        pathExists(path.join(mockHome, '.cursor', 'skills', 'global-skill')),
-      ).toBe(true);
+      expect(pathExists(path.join(mockHome, '.cursor', 'skills', 'global-skill'))).toBe(true);
 
       // Uninstall globally
       const { exitCode, stdout } = runCli('uninstall global-skill -g -y', tempDir, {
@@ -187,9 +179,7 @@ describe('CLI Integration: uninstall', () => {
       expect(stdout).toContain('global-skill');
 
       // Verify removed
-      expect(
-        pathExists(path.join(mockHome, '.cursor', 'skills', 'global-skill')),
-      ).toBe(false);
+      expect(pathExists(path.join(mockHome, '.cursor', 'skills', 'global-skill'))).toBe(false);
     });
 
     it('should not affect project skills when uninstalling global', () => {
@@ -201,14 +191,10 @@ describe('CLI Integration: uninstall', () => {
       runCli('uninstall shared-skill -g -y', tempDir, { HOME: mockHome });
 
       // Global should be removed
-      expect(
-        pathExists(path.join(mockHome, '.cursor', 'skills', 'shared-skill')),
-      ).toBe(false);
+      expect(pathExists(path.join(mockHome, '.cursor', 'skills', 'shared-skill'))).toBe(false);
 
       // Project should remain
-      expect(pathExists(path.join(tempDir, '.skills', 'shared-skill'))).toBe(
-        true,
-      );
+      expect(pathExists(path.join(tempDir, '.skills', 'shared-skill'))).toBe(true);
     });
 
     it('should not affect skills.json for global uninstall', () => {
@@ -225,9 +211,7 @@ describe('CLI Integration: uninstall', () => {
 
       // skills.json should be unchanged
       const config = readSkillsJson(tempDir);
-      expect(config.skills['project-skill']).toBe(
-        'github:test/project-skill@v1.0.0',
-      );
+      expect(config.skills['project-skill']).toBe('github:test/project-skill@v1.0.0');
     });
   });
 });

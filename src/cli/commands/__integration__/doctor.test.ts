@@ -56,16 +56,16 @@ describe('CLI Integration: doctor', () => {
     it('should support --json flag', () => {
       const { stdout, exitCode } = runCli('doctor --json --skip-network', tempDir);
       expect(exitCode).toBeLessThanOrEqual(1);
-      
+
       // Extract JSON from output (may have update notifier appended)
       const jsonMatch = stdout.match(/^\s*\[[\s\S]*?\]\s*$/m);
       expect(jsonMatch).not.toBeNull();
-      
+
       const jsonStr = stdout.substring(0, stdout.lastIndexOf(']') + 1);
       const parsed = JSON.parse(jsonStr);
       expect(Array.isArray(parsed)).toBe(true);
       expect(parsed.length).toBeGreaterThan(0);
-      
+
       // Each result should have required fields
       for (const result of parsed) {
         expect(result).toHaveProperty('name');
@@ -338,10 +338,10 @@ description: Test skill
     it('should output valid JSON with all required fields', () => {
       runCli('init -y', tempDir);
       const { stdout, exitCode } = runCli('doctor --json --skip-network', tempDir);
-      
+
       const results = extractJson(stdout);
       expect(Array.isArray(results)).toBe(true);
-      
+
       // Check that we have expected checks
       const checkNames = (results as Array<{ name: string }>).map((r) => r.name);
       expect(checkNames).toContain('reskill version');
@@ -355,12 +355,10 @@ description: Test skill
     it('should include hints in JSON output for issues', () => {
       // Create project without skills.json to trigger warning
       const { stdout } = runCli('doctor --json --skip-network', tempDir);
-      
+
       const results = extractJson(stdout) as Array<{ name: string; status: string; hint?: string }>;
-      const skillsJsonCheck = results.find(
-        (r) => r.name === 'skills.json'
-      );
-      
+      const skillsJsonCheck = results.find((r) => r.name === 'skills.json');
+
       expect(skillsJsonCheck).toBeDefined();
       expect(skillsJsonCheck!.status).toBe('warn');
       expect(skillsJsonCheck!.hint).toContain('reskill init');

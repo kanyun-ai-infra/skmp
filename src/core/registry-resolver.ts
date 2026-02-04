@@ -8,14 +8,14 @@
  * Uses RegistryClient to download and verify skills.
  */
 
-import { RegistryClient } from './registry-client.js';
-import { extractTarballBuffer, getTarballTopDir } from './extractor.js';
 import {
-  parseSkillIdentifier,
   getRegistryUrl,
   getShortName,
   type ParsedSkillIdentifier,
+  parseSkillIdentifier,
 } from '../utils/registry-scope.js';
+import { extractTarballBuffer, getTarballTopDir } from './extractor.js';
+import { RegistryClient } from './registry-client.js';
 
 // ============================================================================
 // Types
@@ -67,8 +67,12 @@ export class RegistryResolver {
     }
 
     // 排除 HTTP/HTTPS/OSS URL
-    if (ref.startsWith('http://') || ref.startsWith('https://') ||
-        ref.startsWith('oss://') || ref.startsWith('s3://')) {
+    if (
+      ref.startsWith('http://') ||
+      ref.startsWith('https://') ||
+      ref.startsWith('oss://') ||
+      ref.startsWith('s3://')
+    ) {
       return false;
     }
 

@@ -4,9 +4,9 @@
  * These tests verify CLI behavior for HTTP/OSS URL handling.
  */
 
+import { execSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { execSync } from 'node:child_process';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   createTempDir,
@@ -34,18 +34,11 @@ function createTarGzArchive(sourceDir: string, archivePath: string): void {
 /**
  * Create a mock skill directory for archiving
  */
-function createMockSkillForArchive(
-  dir: string,
-  name: string,
-  version = '1.0.0',
-): string {
+function createMockSkillForArchive(dir: string, name: string, version = '1.0.0'): string {
   const skillDir = path.join(dir, name);
   fs.mkdirSync(skillDir, { recursive: true });
 
-  fs.writeFileSync(
-    path.join(skillDir, 'skill.json'),
-    JSON.stringify({ name, version }, null, 2),
-  );
+  fs.writeFileSync(path.join(skillDir, 'skill.json'), JSON.stringify({ name, version }, null, 2));
 
   fs.writeFileSync(
     path.join(skillDir, 'SKILL.md'),
@@ -280,10 +273,7 @@ describe('CLI Integration: install HTTP/OSS sources', () => {
 
     it('should save HTTP source to skills.json after install', () => {
       // Attempt install (will fail without network, but should update config)
-      runCli(
-        'install https://example.com/test-skill.tar.gz -y -a cursor --mode copy',
-        tempDir,
-      );
+      runCli('install https://example.com/test-skill.tar.gz -y -a cursor --mode copy', tempDir);
 
       // Check if URL was saved (may not be saved if install failed)
       const config = readSkillsJson(tempDir);

@@ -444,7 +444,9 @@ describe('ConfigLoader', () => {
 
       const loader = new ConfigLoader(tempDir);
       expect(loader.findRegistryForUrl('https://gitlab.company.com/team/tool')).toBe('internal');
-      expect(loader.findRegistryForUrl('https://gitlab.company.com/team/tool.git')).toBe('internal');
+      expect(loader.findRegistryForUrl('https://gitlab.company.com/team/tool.git')).toBe(
+        'internal',
+      );
     });
 
     it('should find well-known registry for github URL', () => {
@@ -487,89 +489,98 @@ describe('ConfigLoader', () => {
 
     it('should normalize HTTPS URL to custom registry format', () => {
       const loader = new ConfigLoader(tempDir);
-      expect(loader.normalizeSkillRef('https://gitlab.company.com/team/tool@v1.0.0'))
-        .toBe('internal:team/tool@v1.0.0');
+      expect(loader.normalizeSkillRef('https://gitlab.company.com/team/tool@v1.0.0')).toBe(
+        'internal:team/tool@v1.0.0',
+      );
     });
 
     it('should normalize HTTPS URL with .git suffix', () => {
       const loader = new ConfigLoader(tempDir);
-      expect(loader.normalizeSkillRef('https://gitlab.company.com/team/tool.git@v1.0.0'))
-        .toBe('internal:team/tool@v1.0.0');
+      expect(loader.normalizeSkillRef('https://gitlab.company.com/team/tool.git@v1.0.0')).toBe(
+        'internal:team/tool@v1.0.0',
+      );
     });
 
     it('should normalize HTTPS URL without version', () => {
       const loader = new ConfigLoader(tempDir);
-      expect(loader.normalizeSkillRef('https://gitlab.company.com/team/tool'))
-        .toBe('internal:team/tool');
+      expect(loader.normalizeSkillRef('https://gitlab.company.com/team/tool')).toBe(
+        'internal:team/tool',
+      );
     });
 
     it('should normalize GitHub URL to github registry', () => {
       const loader = new ConfigLoader(tempDir);
-      expect(loader.normalizeSkillRef('https://github.com/user/skill@v2.0.0'))
-        .toBe('github:user/skill@v2.0.0');
+      expect(loader.normalizeSkillRef('https://github.com/user/skill@v2.0.0')).toBe(
+        'github:user/skill@v2.0.0',
+      );
     });
 
     it('should normalize GitLab URL to gitlab registry', () => {
       const loader = new ConfigLoader(tempDir);
-      expect(loader.normalizeSkillRef('https://gitlab.com/group/project@latest'))
-        .toBe('gitlab:group/project@latest');
+      expect(loader.normalizeSkillRef('https://gitlab.com/group/project@latest')).toBe(
+        'gitlab:group/project@latest',
+      );
     });
 
     it('should normalize SSH URL to registry format', () => {
       const loader = new ConfigLoader(tempDir);
-      expect(loader.normalizeSkillRef('git@gitlab.company.com:team/tool.git@v1.0.0'))
-        .toBe('internal:team/tool@v1.0.0');
+      expect(loader.normalizeSkillRef('git@gitlab.company.com:team/tool.git@v1.0.0')).toBe(
+        'internal:team/tool@v1.0.0',
+      );
     });
 
     it('should normalize GitHub SSH URL', () => {
       const loader = new ConfigLoader(tempDir);
-      expect(loader.normalizeSkillRef('git@github.com:user/repo.git@v1.0.0'))
-        .toBe('github:user/repo@v1.0.0');
+      expect(loader.normalizeSkillRef('git@github.com:user/repo.git@v1.0.0')).toBe(
+        'github:user/repo@v1.0.0',
+      );
     });
 
     it('should preserve already normalized references', () => {
       const loader = new ConfigLoader(tempDir);
-      expect(loader.normalizeSkillRef('internal:team/tool@v1.0.0'))
-        .toBe('internal:team/tool@v1.0.0');
-      expect(loader.normalizeSkillRef('github:user/repo@latest'))
-        .toBe('github:user/repo@latest');
+      expect(loader.normalizeSkillRef('internal:team/tool@v1.0.0')).toBe(
+        'internal:team/tool@v1.0.0',
+      );
+      expect(loader.normalizeSkillRef('github:user/repo@latest')).toBe('github:user/repo@latest');
     });
 
     it('should preserve unknown URLs', () => {
       const loader = new ConfigLoader(tempDir);
-      expect(loader.normalizeSkillRef('https://unknown.host.com/user/repo@v1.0.0'))
-        .toBe('https://unknown.host.com/user/repo@v1.0.0');
+      expect(loader.normalizeSkillRef('https://unknown.host.com/user/repo@v1.0.0')).toBe(
+        'https://unknown.host.com/user/repo@v1.0.0',
+      );
     });
 
     it('should handle nested paths', () => {
       const loader = new ConfigLoader(tempDir);
-      expect(loader.normalizeSkillRef('https://gitlab.company.com/team/monorepo/skills/pdf@v1.0.0'))
-        .toBe('internal:team/monorepo/skills/pdf@v1.0.0');
+      expect(
+        loader.normalizeSkillRef('https://gitlab.company.com/team/monorepo/skills/pdf@v1.0.0'),
+      ).toBe('internal:team/monorepo/skills/pdf@v1.0.0');
     });
 
     it('should correctly parse SSH URL with .git suffix and version', () => {
       const loader = new ConfigLoader(tempDir);
       // This tests the regex capture group fix for git@host:user/repo.git@v1.0.0
-      expect(loader.normalizeSkillRef('git@github.com:user/repo.git@v1.0.0'))
-        .toBe('github:user/repo@v1.0.0');
+      expect(loader.normalizeSkillRef('git@github.com:user/repo.git@v1.0.0')).toBe(
+        'github:user/repo@v1.0.0',
+      );
     });
 
     it('should correctly parse SSH URL without .git suffix', () => {
       const loader = new ConfigLoader(tempDir);
-      expect(loader.normalizeSkillRef('git@github.com:user/repo@v1.0.0'))
-        .toBe('github:user/repo@v1.0.0');
+      expect(loader.normalizeSkillRef('git@github.com:user/repo@v1.0.0')).toBe(
+        'github:user/repo@v1.0.0',
+      );
     });
 
     it('should correctly parse SSH URL with .git suffix but no version', () => {
       const loader = new ConfigLoader(tempDir);
-      expect(loader.normalizeSkillRef('git@github.com:user/repo.git'))
-        .toBe('github:user/repo');
+      expect(loader.normalizeSkillRef('git@github.com:user/repo.git')).toBe('github:user/repo');
     });
 
     it('should correctly parse SSH URL without .git suffix and no version', () => {
       const loader = new ConfigLoader(tempDir);
-      expect(loader.normalizeSkillRef('git@github.com:user/repo'))
-        .toBe('github:user/repo');
+      expect(loader.normalizeSkillRef('git@github.com:user/repo')).toBe('github:user/repo');
     });
   });
 });

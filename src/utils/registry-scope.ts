@@ -71,9 +71,7 @@ export function getScopeForRegistry(registry: string): string | null {
   }
 
   // Try with/without trailing slash
-  const normalized = registry.endsWith('/')
-    ? registry.slice(0, -1)
-    : `${registry}/`;
+  const normalized = registry.endsWith('/') ? registry.slice(0, -1) : `${registry}/`;
 
   return REGISTRY_SCOPE_MAP[normalized] || null;
 }
@@ -160,9 +158,7 @@ export function getRegistryUrl(
   if (!registry) {
     // Normalize scope for error message
     const normalizedScope = scope.startsWith('@') ? scope : `@${scope}`;
-    throw new Error(
-      `Unknown scope ${normalizedScope}. No registry configured for this scope.`,
-    );
+    throw new Error(`Unknown scope ${normalizedScope}. No registry configured for this scope.`);
   }
 
   return registry;

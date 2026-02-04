@@ -110,7 +110,7 @@ function parseFrontmatter(content: string): {
     }
 
     // Check if it's a nested key: value pair (indented with 2 spaces)
-    const nestedMatch = line.match(/^  ([a-zA-Z_-]+):\s*(.*)$/);
+    const nestedMatch = line.match(/^ {2}([a-zA-Z_-]+):\s*(.*)$/);
     if (nestedMatch && inNestedObject) {
       const [, nestedKey, nestedValue] = nestedMatch;
       nestedObject[nestedKey] = parseYamlValue(nestedValue.trim());

@@ -47,10 +47,7 @@ describe('CLI Integration: install --mode copy', () => {
     });
 
     it('should reject invalid agent names', () => {
-      const { stdout, exitCode } = runCli(
-        'install github:test/skill -a invalid-agent -y',
-        tempDir,
-      );
+      const { stdout, exitCode } = runCli('install github:test/skill -a invalid-agent -y', tempDir);
       expect(exitCode).toBe(1);
       expect(stdout.toLowerCase()).toContain('invalid');
     });
@@ -110,7 +107,7 @@ describe('CLI Integration: install --mode copy', () => {
   describe('--no-save flag behavior', () => {
     it('should not add skill to skills.json with --no-save', () => {
       // Verify initial state
-      let config = readSkillsJson(tempDir);
+      const config = readSkillsJson(tempDir);
       expect(Object.keys(config.skills).length).toBe(0);
 
       // The actual install will fail (network), but --no-save should be respected

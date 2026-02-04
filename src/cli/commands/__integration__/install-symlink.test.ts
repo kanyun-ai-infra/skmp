@@ -157,11 +157,7 @@ describe('CLI Integration: install --mode symlink (default)', () => {
 
     it('should create skills in custom installDir when manually set up', () => {
       // Setup skills.json with custom installDir
-      setupSkillsJson(
-        tempDir,
-        {},
-        { installDir: '.my-skills', targetAgents: ['cursor'] },
-      );
+      setupSkillsJson(tempDir, {}, { installDir: '.my-skills', targetAgents: ['cursor'] });
 
       // Create skill manually in custom location (simulating installation)
       createMockSkill(path.join(tempDir, '.my-skills'), 'test-skill');
@@ -176,11 +172,7 @@ describe('CLI Integration: install --mode symlink (default)', () => {
 
     it('should list skills from custom installDir', () => {
       // Setup skills.json with custom installDir
-      setupSkillsJson(
-        tempDir,
-        {},
-        { installDir: '.custom-skills', targetAgents: ['cursor'] },
-      );
+      setupSkillsJson(tempDir, {}, { installDir: '.custom-skills', targetAgents: ['cursor'] });
 
       // Create skill in custom location
       createMockSkill(path.join(tempDir, '.custom-skills'), 'custom-skill');
@@ -188,10 +180,7 @@ describe('CLI Integration: install --mode symlink (default)', () => {
       // Also add to skills.json config to simulate a proper installation
       const skillsJson = readSkillsJson(tempDir);
       skillsJson.skills['custom-skill'] = 'github:test/custom-skill@v1.0.0';
-      fs.writeFileSync(
-        path.join(tempDir, 'skills.json'),
-        JSON.stringify(skillsJson, null, 2),
-      );
+      fs.writeFileSync(path.join(tempDir, 'skills.json'), JSON.stringify(skillsJson, null, 2));
 
       // List should find the skill
       const { stdout, exitCode } = runCli('list', tempDir);
