@@ -521,7 +521,7 @@ compatibility: cursor >=0.40
       createValidSkillMd();
 
       const result = runCli(
-        'publish --dry-run --registry https://reskill-test.zhenguanyu.com',
+        'publish --dry-run --registry https://rush-test.zhenguanyu.com',
         tempDir,
       );
 

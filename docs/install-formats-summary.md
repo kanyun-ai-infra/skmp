@@ -58,14 +58,14 @@
 
 从 Skill Registry 安装 skill。
 
-| 类型                     | 格式示例                            | Registry URL                           |
-| ------------------------ | ----------------------------------- | -------------------------------------- |
-| **私有 Registry**        | `@kanyun/planning-with-files`       | `https://reskill-test.zhenguanyu.com/` |
-| **私有 Registry + 版本** | `@kanyun/planning-with-files@2.4.5` | `https://reskill-test.zhenguanyu.com/` |
-| **私有 Registry + tag**  | `@kanyun/planning-with-files@beta`  | `https://reskill-test.zhenguanyu.com/` |
-| **公共 Registry**        | `planning-with-files`               | `https://reskill.info/`                |
-| **公共 Registry + 版本** | `planning-with-files@2.4.5`         | `https://reskill.info/`                |
-| **公共 Registry + tag**  | `planning-with-files@latest`        | `https://reskill.info/`                |
+| 类型                     | 格式示例                            | Registry URL                        |
+| ------------------------ | ----------------------------------- | ----------------------------------- |
+| **私有 Registry**        | `@kanyun/planning-with-files`       | `https://rush-test.zhenguanyu.com/` |
+| **私有 Registry + 版本** | `@kanyun/planning-with-files@2.4.5` | `https://rush-test.zhenguanyu.com/` |
+| **私有 Registry + tag**  | `@kanyun/planning-with-files@beta`  | `https://rush-test.zhenguanyu.com/` |
+| **公共 Registry**        | `planning-with-files`               | `https://reskill.info/`             |
+| **公共 Registry + 版本** | `planning-with-files@2.4.5`         | `https://reskill.info/`             |
+| **公共 Registry + tag**  | `planning-with-files@latest`        | `https://reskill.info/`             |
 
 ---
 
@@ -268,10 +268,10 @@ reskill install planning-with-files@latest
 
 ### 私有 Registry Scope 映射
 
-| Scope              | Registry URL                           |
-| ------------------ | -------------------------------------- |
-| `@kanyun`          | `https://reskill-test.zhenguanyu.com/` |
-| （localhost 开发） | `http://localhost:3000/`               |
+| Scope              | Registry URL                        |
+| ------------------ | ----------------------------------- |
+| `@kanyun`          | `https://rush-test.zhenguanyu.com/` |
+| （localhost 开发） | `http://localhost:3000/`            |
 
 ### 公共 Registry
 
@@ -285,8 +285,8 @@ reskill install planning-with-files@latest
 // src/utils/registry-scope.ts
 
 const REGISTRY_SCOPE_MAP: Record<string, string> = {
-  'https://reskill-test.zhenguanyu.com': '@kanyun',
-  'https://reskill-test.zhenguanyu.com/': '@kanyun',
+  'https://rush-test.zhenguanyu.com': '@kanyun',
+  'https://rush-test.zhenguanyu.com/': '@kanyun',
   'http://localhost:3000': '@kanyun',
   'http://localhost:3000/': '@kanyun',
 };

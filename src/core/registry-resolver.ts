@@ -9,6 +9,7 @@
  */
 
 import {
+  getApiPrefix,
   getRegistryUrl,
   getShortName,
   type ParsedSkillIdentifier,
@@ -115,7 +116,7 @@ export class RegistryResolver {
     const registryUrl = getRegistryUrl(parsed.scope);
 
     // 3. 创建 client 并解析版本
-    const client = new RegistryClient({ registry: registryUrl });
+    const client = new RegistryClient({ registry: registryUrl, apiPrefix: getApiPrefix(registryUrl) });
     const version = await client.resolveVersion(parsed.fullName, parsed.version);
 
     // 4. 下载 tarball

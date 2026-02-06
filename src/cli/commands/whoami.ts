@@ -9,6 +9,7 @@ import { AuthManager } from '../../core/auth-manager.js';
 import { RegistryClient, RegistryError } from '../../core/registry-client.js';
 import { logger } from '../../utils/logger.js';
 import { resolveRegistry } from '../../utils/registry.js';
+import { getApiPrefix } from '../../utils/registry-scope.js';
 
 // ============================================================================
 // Types
@@ -36,7 +37,7 @@ async function whoamiAction(options: WhoamiOptions): Promise<void> {
   }
 
   // Verify with server
-  const client = new RegistryClient({ registry, token });
+  const client = new RegistryClient({ registry, token, apiPrefix: getApiPrefix(registry) });
 
   try {
     const response = await client.whoami();

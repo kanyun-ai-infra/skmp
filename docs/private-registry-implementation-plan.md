@@ -80,7 +80,7 @@ Phase 5: 后续优化
 
 describe('getRegistryForScope', () => {
   it('should return registry for known scope', () => {
-    expect(getRegistryForScope('@kanyun')).toBe('https://reskill-test.zhenguanyu.com/');
+    expect(getRegistryForScope('@kanyun')).toBe('https://rush-test.zhenguanyu.com/');
   });
 
   it('should return registry for localhost scope', () => {
@@ -92,7 +92,7 @@ describe('getRegistryForScope', () => {
   });
 
   it('should handle scope without @ prefix', () => {
-    expect(getRegistryForScope('kanyun')).toBe('https://reskill-test.zhenguanyu.com/');
+    expect(getRegistryForScope('kanyun')).toBe('https://rush-test.zhenguanyu.com/');
   });
 });
 ```
@@ -398,7 +398,7 @@ describe('getRegistryUrl', () => {
   // 私有 Registry（有 scope）
   it('should resolve registry from known scope', () => {
     const registry = getRegistryUrl('@kanyun');
-    expect(registry).toBe('https://reskill-test.zhenguanyu.com/');
+    expect(registry).toBe('https://rush-test.zhenguanyu.com/');
   });
 
   it('should throw error for unknown scope', () => {
@@ -667,7 +667,7 @@ describe('extractTarball', () => {
 // src/e2e/publish-install.test.ts
 
 describe('E2E: publish and install from registry', () => {
-  const registry = 'https://reskill-test.zhenguanyu.com/';
+  const registry = 'https://rush-test.zhenguanyu.com/';
   
   beforeAll(async () => {
     // 启动测试 registry 服务或使用 mock

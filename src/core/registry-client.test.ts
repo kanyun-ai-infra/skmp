@@ -99,6 +99,201 @@ describe('RegistryClient', () => {
       client = new RegistryClient({ registry: testRegistry, token: testToken });
       expect(client).toBeInstanceOf(RegistryClient);
     });
+
+    it('should create client with apiPrefix', () => {
+      client = new RegistryClient({ registry: testRegistry, apiPrefix: '/api/reskill' });
+      expect(client).toBeInstanceOf(RegistryClient);
+    });
+  });
+
+  // ============================================================================
+  // apiPrefix support tests
+  // ============================================================================
+
+  describe('apiPrefix support', () => {
+    it('should use /api prefix by default for whoami', async () => {
+      client = new RegistryClient({ registry: testRegistry });
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({ success: true, user: { id: 'u', handle: 'h' } }),
+      });
+
+      await client.whoami();
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        `${testRegistry}/api/auth/me`,
+        expect.any(Object),
+      );
+    });
+
+    it('should use custom apiPrefix for whoami', async () => {
+      client = new RegistryClient({ registry: testRegistry, apiPrefix: '/api/reskill' });
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({ success: true, user: { id: 'u', handle: 'h' } }),
+      });
+
+      await client.whoami();
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        `${testRegistry}/api/reskill/auth/me`,
+        expect.any(Object),
+      );
+    });
+
+    it('should strip trailing slash from registry before building API URL', async () => {
+      client = new RegistryClient({
+        registry: 'https://rush-test.zhenguanyu.com/',
+        apiPrefix: '/api/reskill',
+      });
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({ success: true, user: { id: 'u', handle: 'h' } }),
+      });
+
+      await client.whoami();
+
+      // Should NOT produce double slash: https://rush-test.zhenguanyu.com//api/reskill/auth/me
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://rush-test.zhenguanyu.com/api/reskill/auth/me',
+        expect.any(Object),
+      );
+    });
+
+    it('should use custom apiPrefix for loginCli', async () => {
+      client = new RegistryClient({
+        registry: testRegistry,
+        token: testToken,
+        apiPrefix: '/api/reskill',
+      });
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({ success: true, user: { id: 'u', handle: 'h' } }),
+      });
+
+      await client.loginCli();
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        `${testRegistry}/api/reskill/auth/login-cli`,
+        expect.any(Object),
+      );
+    });
+
+    it('should use custom apiPrefix for getSkillInfo', async () => {
+      client = new RegistryClient({
+        registry: testRegistry,
+        token: testToken,
+        apiPrefix: '/api/reskill',
+      });
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({ success: true, data: { name: '@kanyun/test' } }),
+      });
+
+      await client.getSkillInfo('@kanyun/test');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        `${testRegistry}/api/reskill/skills/${encodeURIComponent('@kanyun/test')}`,
+        expect.any(Object),
+      );
+    });
+
+    it('should use custom apiPrefix for downloadSkill', async () => {
+      const mockTarballContent = Buffer.from('mock tarball content');
+
+      client = new RegistryClient({
+        registry: testRegistry,
+        token: testToken,
+        apiPrefix: '/api/reskill',
+      });
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        headers: new Headers({ 'x-integrity': 'sha256-hash' }),
+        arrayBuffer: () => Promise.resolve(mockTarballContent.buffer),
+      });
+
+      await client.downloadSkill('@kanyun/test', '1.0.0');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        `${testRegistry}/api/reskill/skills/${encodeURIComponent('@kanyun/test')}/versions/1.0.0/download`,
+        expect.any(Object),
+      );
+    });
+
+    it('should use custom apiPrefix for publish', async () => {
+      const tempDir = (await import('node:fs')).mkdtempSync(
+        (await import('node:path')).join(
+          (await import('node:os')).tmpdir(),
+          'reskill-prefix-test-',
+        ),
+      );
+      (await import('node:fs')).writeFileSync(`${tempDir}/SKILL.md`, '# Test');
+
+      client = new RegistryClient({
+        registry: testRegistry,
+        token: testToken,
+        apiPrefix: '/api/reskill',
+      });
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ success: true }),
+      });
+
+      const payload = {
+        version: '1.0.0',
+        description: 'test',
+        files: ['SKILL.md'],
+        skillJson: { name: 'test', version: '1.0.0', description: 'test' },
+        repositoryUrl: '',
+        sourceRef: '',
+        gitRef: '',
+        gitCommit: '',
+        entry: 'SKILL.md',
+        integrity: 'sha512-test',
+      };
+
+      await client.publish('test-skill', payload, tempDir);
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        `${testRegistry}/api/reskill/skills/publish`,
+        expect.any(Object),
+      );
+
+      (await import('node:fs')).rmSync(tempDir, { recursive: true, force: true });
+    });
+
+    it('should use custom apiPrefix for resolveVersion with tag', async () => {
+      client = new RegistryClient({
+        registry: testRegistry,
+        token: testToken,
+        apiPrefix: '/api/reskill',
+      });
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({ 'dist-tags': { latest: '1.0.0' } }),
+      });
+
+      await client.resolveVersion('@kanyun/test', 'latest');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        `${testRegistry}/api/reskill/skills/${encodeURIComponent('@kanyun/test')}`,
+        expect.any(Object),
+      );
+    });
   });
 
   // ============================================================================
@@ -834,11 +1029,12 @@ describe('RegistryClient', () => {
       client = new RegistryClient({ registry: testRegistry, token: testToken });
     });
 
-    it('should download tarball successfully', async () => {
+    it('should download tarball successfully (direct response)', async () => {
       const mockTarballContent = Buffer.from('mock tarball content');
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
+        status: 200,
         headers: new Headers({
           'x-integrity': 'sha256-mockhash123',
           'content-type': 'application/gzip',
@@ -855,10 +1051,113 @@ describe('RegistryClient', () => {
         `${testRegistry}/api/skills/${encodeURIComponent('@kanyun/test-skill')}/versions/1.0.0/download`,
         expect.objectContaining({
           method: 'GET',
+          redirect: 'manual',
           headers: expect.objectContaining({
             Authorization: `Bearer ${testToken}`,
           }),
         }),
+      );
+    });
+
+    it('should download tarball via 302 redirect to OSS', async () => {
+      const tarballData = new TextEncoder().encode('redirect tarball content');
+      const ossSignedUrl = 'https://oss.example.com/artifacts/sha256/abc.tgz?signature=xxx';
+
+      // First call: registry returns 302 with x-integrity and Location
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 302,
+        headers: new Headers({
+          'x-integrity': 'sha256-redirecthash456',
+          Location: ossSignedUrl,
+        }),
+      });
+
+      // Second call: OSS returns the actual tarball
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        arrayBuffer: () => Promise.resolve(tarballData.buffer.slice(0)),
+      });
+
+      const result = await client.downloadSkill('@kanyun/test-skill', '1.0.0');
+
+      expect(result.tarball).toBeInstanceOf(Buffer);
+      expect(result.tarball.toString()).toBe('redirect tarball content');
+      expect(result.integrity).toBe('sha256-redirecthash456');
+
+      // Verify first call to registry with redirect: 'manual'
+      expect(mockFetch).toHaveBeenNthCalledWith(
+        1,
+        `${testRegistry}/api/skills/${encodeURIComponent('@kanyun/test-skill')}/versions/1.0.0/download`,
+        expect.objectContaining({
+          method: 'GET',
+          redirect: 'manual',
+        }),
+      );
+
+      // Verify second call to OSS signed URL
+      expect(mockFetch).toHaveBeenNthCalledWith(2, ossSignedUrl);
+    });
+
+    it('should handle 301 redirect same as 302', async () => {
+      const tarballData = new TextEncoder().encode('301 tarball content');
+      const ossUrl = 'https://oss.example.com/artifacts/file.tgz';
+
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 301,
+        headers: new Headers({
+          'x-integrity': 'sha256-hash301',
+          Location: ossUrl,
+        }),
+      });
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        arrayBuffer: () => Promise.resolve(tarballData.buffer.slice(0)),
+      });
+
+      const result = await client.downloadSkill('@kanyun/test-skill', '1.0.0');
+
+      expect(result.integrity).toBe('sha256-hash301');
+      expect(result.tarball.toString()).toBe('301 tarball content');
+    });
+
+    it('should throw error when 302 redirect has no Location header', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 302,
+        headers: new Headers({
+          'x-integrity': 'sha256-nolocation',
+        }),
+      });
+
+      await expect(client.downloadSkill('@kanyun/test-skill', '1.0.0')).rejects.toThrow(
+        'Missing redirect location in download response',
+      );
+    });
+
+    it('should throw error when OSS download fails after redirect', async () => {
+      const ossUrl = 'https://oss.example.com/artifacts/file.tgz';
+
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 302,
+        headers: new Headers({
+          'x-integrity': 'sha256-ossfail',
+          Location: ossUrl,
+        }),
+      });
+
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 403,
+      });
+
+      await expect(client.downloadSkill('@kanyun/test-skill', '1.0.0')).rejects.toThrow(
+        'Download from storage failed: 403',
       );
     });
 
@@ -891,6 +1190,7 @@ describe('RegistryClient', () => {
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
+        status: 200,
         headers: new Headers({
           'x-integrity': 'sha256-hash',
         }),
@@ -901,7 +1201,9 @@ describe('RegistryClient', () => {
 
       expect(mockFetch).toHaveBeenCalledWith(
         `${testRegistry}/api/skills/public-skill/versions/1.0.0/download`,
-        expect.anything(),
+        expect.objectContaining({
+          redirect: 'manual',
+        }),
       );
     });
   });

@@ -20,6 +20,8 @@ import type { PublishPayload } from './publisher.js';
 export interface RegistryConfig {
   registry: string;
   token?: string;
+  /** API path prefix, e.g., '/api' (default) or '/api/reskill' for rush-app */
+  apiPrefix?: string;
 }
 
 export interface PublishRequest {
@@ -101,6 +103,19 @@ export class RegistryClient {
   }
 
   /**
+   * Get API base URL (registry + apiPrefix)
+   *
+   * @returns Base URL for API calls, e.g., 'https://example.com/api' or 'https://rush.com/api/reskill'
+   */
+  private getApiBase(): string {
+    const prefix = this.config.apiPrefix || '/api';
+    const registry = this.config.registry.endsWith('/')
+      ? this.config.registry.slice(0, -1)
+      : this.config.registry;
+    return `${registry}${prefix}`;
+  }
+
+  /**
    * Get authorization headers
    */
   private getAuthHeaders(): Record<string, string> {
@@ -120,7 +135,7 @@ export class RegistryClient {
    * Get current user info (whoami)
    */
   async whoami(): Promise<WhoamiResponse> {
-    const url = `${this.config.registry}/api/auth/me`;
+    const url = `${this.getApiBase()}/auth/me`;
 
     const response = await fetch(url, {
       method: 'GET',
@@ -150,7 +165,7 @@ export class RegistryClient {
    * @throws RegistryError if authentication fails
    */
   async loginCli(): Promise<LoginCliResponse> {
-    const url = `${this.config.registry}/api/auth/login-cli`;
+    const url = `${this.getApiBase()}/auth/login-cli`;
 
     const response = await fetch(url, {
       method: 'POST',
@@ -231,7 +246,7 @@ export class RegistryClient {
    * @throws RegistryError 如果 skill 不存在或请求失败
    */
   async getSkillInfo(skillName: string): Promise<SkillInfo> {
-    const url = `${this.config.registry}/api/skills/${encodeURIComponent(skillName)}`;
+    const url = `${this.getApiBase()}/skills/${encodeURIComponent(skillName)}`;
 
     const response = await fetch(url, {
       method: 'GET',
@@ -287,7 +302,7 @@ export class RegistryClient {
     }
 
     // 否则视为 tag，需要查询 dist-tags
-    const url = `${this.config.registry}/api/skills/${encodeURIComponent(skillName)}`;
+    const url = `${this.getApiBase()}/skills/${encodeURIComponent(skillName)}`;
 
     const response = await fetch(url, {
       method: 'GET',
@@ -345,12 +360,38 @@ export class RegistryClient {
    * const { tarball, integrity } = await client.downloadSkill('@kanyun/test-skill', '1.0.0');
    */
   async downloadSkill(skillName: string, version: string): Promise<DownloadResult> {
-    const url = `${this.config.registry}/api/skills/${encodeURIComponent(skillName)}/versions/${version}/download`;
+    const url = `${this.getApiBase()}/skills/${encodeURIComponent(skillName)}/versions/${version}/download`;
 
+    // Use redirect: 'manual' to capture x-integrity header from 302 responses.
+    // The registry returns a 302 redirect to OSS with the integrity header,
+    // which would be lost if fetch auto-follows the redirect.
     const response = await fetch(url, {
       method: 'GET',
       headers: this.getAuthHeaders(),
+      redirect: 'manual',
     });
+
+    // Handle 302 redirect (registry → OSS signed URL)
+    if (response.status === 301 || response.status === 302) {
+      const integrity = response.headers.get('x-integrity') || '';
+      const location = response.headers.get('location');
+
+      if (!location) {
+        throw new RegistryError('Missing redirect location in download response', response.status);
+      }
+
+      const downloadResponse = await fetch(location);
+      if (!downloadResponse.ok) {
+        throw new RegistryError(
+          `Download from storage failed: ${downloadResponse.status}`,
+          downloadResponse.status,
+        );
+      }
+
+      const arrayBuffer = await downloadResponse.arrayBuffer();
+      const tarball = Buffer.from(arrayBuffer);
+      return { tarball, integrity };
+    }
 
     if (!response.ok) {
       const data = (await response.json()) as { error?: string };
@@ -361,6 +402,7 @@ export class RegistryClient {
       );
     }
 
+    // Direct response (no redirect) - read tarball and integrity directly
     const arrayBuffer = await response.arrayBuffer();
     const tarball = Buffer.from(arrayBuffer);
     const integrity = response.headers.get('x-integrity') || '';
@@ -428,7 +470,7 @@ export class RegistryClient {
     skillPath: string,
     options: { tag?: string } = {},
   ): Promise<PublishResponse> {
-    const url = `${this.config.registry}/api/skills/publish`;
+    const url = `${this.getApiBase()}/skills/publish`;
 
     // 提取短名称作为 tarball 顶层目录（不含 scope 前缀）
     const shortName = getShortName(skillName);

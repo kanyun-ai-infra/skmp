@@ -25,6 +25,7 @@ import {
 } from '../../../core/install-directory.js';
 import { RegistryClient } from '../../../core/registry-client.js';
 import {
+  getApiPrefix,
   getRegistryUrl,
   getShortName,
   parseSkillIdentifier,
@@ -33,6 +34,10 @@ import {
 // 测试配置
 const REGISTRY_URL = process.env.REGISTRY_URL || 'http://localhost:3000';
 const TEST_SKILL = process.env.TEST_SKILL || '@kanyun/planning-with-files';
+const API_PREFIX = getApiPrefix(REGISTRY_URL);
+// Dummy token to pass rush-app middleware (middleware only checks Bearer prefix existence,
+// actual token validation is done in route handlers for write endpoints)
+const TEST_TOKEN = process.env.REGISTRY_TOKEN || 'test-integration';
 
 // 检查 registry 是否可用
 async function isRegistryAvailable(): Promise<boolean> {
@@ -40,9 +45,12 @@ async function isRegistryAvailable(): Promise<boolean> {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 3000);
 
-    const response = await fetch(`${REGISTRY_URL}/api/skills/%40kanyun%2Fplanning-with-files`, {
+    const response = await fetch(`${REGISTRY_URL}${API_PREFIX}/skills/%40kanyun%2Fplanning-with-files`, {
       method: 'GET',
       signal: controller.signal,
+      headers: {
+        Authorization: `Bearer ${TEST_TOKEN}`,
+      },
     });
 
     clearTimeout(timeoutId);
@@ -129,7 +137,7 @@ describe('Install from npm-style Registry', () => {
   describe('getRegistryUrl', () => {
     it('should resolve @kanyun to private registry', () => {
       const registry = getRegistryUrl('@kanyun');
-      expect(registry).toBe('https://reskill-test.zhenguanyu.com/');
+      expect(registry).toBe('https://rush-test.zhenguanyu.com/');
     });
 
     it('should return public registry for null scope', () => {
@@ -180,7 +188,7 @@ describe('Install from npm-style Registry', () => {
           console.log('Skipping: registry not available');
           return;
         }
-        const client = new RegistryClient({ registry: REGISTRY_URL });
+        const client = new RegistryClient({ registry: REGISTRY_URL, apiPrefix: API_PREFIX, token: TEST_TOKEN });
         const { scope, name, version } = parseSkillIdentifier(TEST_SKILL);
 
         // 1. 解析版本
@@ -216,7 +224,7 @@ describe('Install from npm-style Registry', () => {
           console.log('Skipping: registry not available');
           return;
         }
-        const client = new RegistryClient({ registry: REGISTRY_URL });
+        const client = new RegistryClient({ registry: REGISTRY_URL, apiPrefix: API_PREFIX, token: TEST_TOKEN });
         const { scope, name } = parseSkillIdentifier(TEST_SKILL);
         const shortName = getShortName(`${scope}/${name}`);
 
@@ -268,7 +276,7 @@ describe('Install from npm-style Registry', () => {
         expect(registryUrl).toBeTruthy();
 
         // 使用测试 registry
-        const client = new RegistryClient({ registry: REGISTRY_URL });
+        const client = new RegistryClient({ registry: REGISTRY_URL, apiPrefix: API_PREFIX, token: TEST_TOKEN });
 
         // 2. 解析版本
         const resolvedVersion = await client.resolveVersion(
@@ -318,7 +326,7 @@ describe('Install from npm-style Registry', () => {
         console.log('Skipping: registry not available');
         return;
       }
-      const client = new RegistryClient({ registry: REGISTRY_URL });
+      const client = new RegistryClient({ registry: REGISTRY_URL, apiPrefix: API_PREFIX, token: TEST_TOKEN });
 
       await expect(
         client.resolveVersion('@kanyun/non-existent-skill-xyz', 'latest'),
@@ -330,7 +338,7 @@ describe('Install from npm-style Registry', () => {
         console.log('Skipping: registry not available');
         return;
       }
-      const client = new RegistryClient({ registry: REGISTRY_URL });
+      const client = new RegistryClient({ registry: REGISTRY_URL, apiPrefix: API_PREFIX, token: TEST_TOKEN });
       const { scope, name } = parseSkillIdentifier(TEST_SKILL);
 
       await expect(client.downloadSkill(`${scope}/${name}`, '999.999.999')).rejects.toThrow();

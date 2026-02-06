@@ -60,7 +60,7 @@ describe('publish command', () => {
 
     describe('should allow private registries', () => {
       it('should allow custom private domain', () => {
-        expect(isBlockedPublicRegistry('https://reskill-test.zhenguanyu.com')).toBe(false);
+        expect(isBlockedPublicRegistry('https://rush-test.zhenguanyu.com')).toBe(false);
       });
 
       it('should allow localhost', () => {
@@ -116,7 +116,7 @@ describe('publish command', () => {
       it('should build skill name with registry scope for kanyun registry', () => {
         const result = buildPublishSkillName(
           'planning-with-files',
-          'https://reskill-test.zhenguanyu.com/',
+          'https://rush-test.zhenguanyu.com/',
           'wangzirenbj',
         );
         // Should use @kanyun (registry scope), not @wangzirenbj (user handle)
@@ -126,7 +126,16 @@ describe('publish command', () => {
       it('should handle registry without trailing slash', () => {
         const result = buildPublishSkillName(
           'my-skill',
-          'https://reskill-test.zhenguanyu.com',
+          'https://rush-test.zhenguanyu.com',
+          'someuser',
+        );
+        expect(result).toBe('@kanyun/my-skill');
+      });
+
+      it('should work with rush.zhenguanyu.com (production)', () => {
+        const result = buildPublishSkillName(
+          'my-skill',
+          'https://rush.zhenguanyu.com/',
           'someuser',
         );
         expect(result).toBe('@kanyun/my-skill');
@@ -146,7 +155,7 @@ describe('publish command', () => {
       it('should keep existing scope if name already has one', () => {
         const result = buildPublishSkillName(
           '@existing/my-skill',
-          'https://reskill-test.zhenguanyu.com/',
+          'https://rush-test.zhenguanyu.com/',
           'wangzirenbj',
         );
         // Should preserve existing scope
@@ -160,8 +169,12 @@ describe('publish command', () => {
   // ============================================================================
 
   describe('getScopeForRegistry', () => {
-    it('should return @kanyun for reskill-test.zhenguanyu.com', () => {
-      expect(getScopeForRegistry('https://reskill-test.zhenguanyu.com/')).toBe('@kanyun');
+    it('should return @kanyun for rush-test.zhenguanyu.com', () => {
+      expect(getScopeForRegistry('https://rush-test.zhenguanyu.com/')).toBe('@kanyun');
+    });
+
+    it('should return @kanyun for rush.zhenguanyu.com', () => {
+      expect(getScopeForRegistry('https://rush.zhenguanyu.com/')).toBe('@kanyun');
     });
 
     it('should return null for unknown registry', () => {

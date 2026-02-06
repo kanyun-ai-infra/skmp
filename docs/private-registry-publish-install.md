@@ -77,7 +77,7 @@ AI 编码助手（如 Claude Code）期望的目录结构是：
  * 私域 Registry 配置
  */
 export const PRIVATE_REGISTRIES: Record<string, string> = {
-  'https://reskill-test.zhenguanyu.com/': '@kanyun',
+  'https://rush-test.zhenguanyu.com/': '@kanyun',
 };
 
 /**
@@ -129,7 +129,7 @@ reskill publish
 reskill publish ./planning-with-files
 
 # 发布到指定 registry
-reskill publish --registry=https://reskill-test.zhenguanyu.com/
+reskill publish --registry=https://rush-test.zhenguanyu.com/
 
 # 预览发布内容
 reskill publish --dry-run
@@ -140,7 +140,7 @@ reskill publish --dry-run
 ```
 输入：
     path: ./planning-with-files（或当前目录）
-    registry: https://reskill-test.zhenguanyu.com/
+    registry: https://rush-test.zhenguanyu.com/
     │
     ▼
 1. 确定 Skill 目录：
@@ -166,7 +166,7 @@ reskill publish --dry-run
     ├── 找到 → scope = @kanyun
     └── 未找到 → 报错 ❌
         "Only private registry publishing is supported.
-         Supported: https://reskill-test.zhenguanyu.com/"
+         Supported: https://rush-test.zhenguanyu.com/"
     │
     ▼
 5. 解析 Skill 信息：
@@ -252,7 +252,7 @@ reskill install @kanyun/planning-with-files@beta
 2. 确定 Registry：
     ├── --registry 参数
     ├── 或从 scope 反查 PRIVATE_REGISTRIES
-    │   @kanyun → https://reskill-test.zhenguanyu.com/
+    │   @kanyun → https://rush-test.zhenguanyu.com/
     └── 未找到 → 报错 ❌
         "Unknown scope @kanyun. Use --registry to specify."
     │
@@ -682,7 +682,7 @@ INSTALL:
 | -------------------------- | ------------------------------------------------------------------------------------------------ |
 | SKILL.md 不存在            | `SKILL.md not found in /path/to/dir`                                                             |
 | 未指定 Registry            | `No registry specified. Set RESKILL_REGISTRY or use --registry`                                  |
-| 非私域 Registry            | `Only private registry publishing is supported. Supported: https://reskill-test.zhenguanyu.com/` |
+| 非私域 Registry            | `Only private registry publishing is supported. Supported: https://rush-test.zhenguanyu.com/` |
 | 未知 Scope                 | `Unknown scope @xxx. Use --registry to specify.`                                                 |
 | 同名冲突                   | `Conflict: .claude/skills/xxx/ already exists.`                                                  |
 | Integrity 校验失败         | `Integrity check failed. Expected: sha256-xxx, Got: sha256-yyy`                                  |

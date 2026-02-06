@@ -978,6 +978,22 @@ These options are available for all commands:
 
 ---
 
+## Registry API Prefix
+
+Different registries may host the reskill API under different path prefixes. The CLI automatically determines the correct API prefix based on the registry URL.
+
+| Registry | Domain | API Prefix | Example |
+|----------|--------|------------|---------|
+| Public | `reskill.info` | `/api` | `https://reskill.info/api/skills/...` |
+| Private (rush-app) | `rush-test.zhenguanyu.com` | `/api/reskill` | `https://rush-test.zhenguanyu.com/api/reskill/skills/...` |
+| Private (rush-app) | `rush.zhenguanyu.com` | `/api/reskill` | `https://rush.zhenguanyu.com/api/reskill/skills/...` |
+| Local dev | `localhost:3000` | `/api/reskill` | `http://localhost:3000/api/reskill/skills/...` |
+| Unknown | any other | `/api` (default) | `https://custom.com/api/skills/...` |
+
+The `getApiPrefix(registryUrl)` utility resolves the prefix. The `RegistryClient` accepts an optional `apiPrefix` in its config and uses it to construct all API endpoint URLs.
+
+---
+
 ## Environment Variables
 
 | Variable | Description |

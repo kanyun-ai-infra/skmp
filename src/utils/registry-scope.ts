@@ -16,12 +16,47 @@ export const PUBLIC_REGISTRY = 'https://reskill.info/';
  * TODO: Replace with dynamic fetching from /api/registry/info
  */
 const REGISTRY_SCOPE_MAP: Record<string, string> = {
+  // rush-app (private registry, new)
+  'https://rush-test.zhenguanyu.com': '@kanyun',
+  'https://rush.zhenguanyu.com': '@kanyun',
+  // reskill-app (private registry, legacy)
   'https://reskill-test.zhenguanyu.com': '@kanyun',
-  'https://reskill-test.zhenguanyu.com/': '@kanyun',
   // Local development
   'http://localhost:3000': '@kanyun',
-  'http://localhost:3000/': '@kanyun',
 };
+
+/**
+ * Registry API prefix mapping
+ *
+ * rush-app hosts reskill APIs under /api/reskill/ prefix.
+ * Default for unlisted registries: '/api'
+ */
+const REGISTRY_API_PREFIX: Record<string, string> = {
+  'https://rush-test.zhenguanyu.com': '/api/reskill',
+  'https://rush.zhenguanyu.com': '/api/reskill',
+  'http://localhost:3000': '/api/reskill',
+  // Note: reskill-test.zhenguanyu.com (legacy reskill-app) is intentionally
+  // NOT listed here — it uses the default '/api' prefix.
+};
+
+/**
+ * Get the API path prefix for a given registry URL
+ *
+ * @param registryUrl - Registry URL
+ * @returns API prefix string (e.g., '/api' or '/api/reskill')
+ *
+ * @example
+ * getApiPrefix('https://rush-test.zhenguanyu.com') // '/api/reskill'
+ * getApiPrefix('https://reskill.info') // '/api'
+ * getApiPrefix('https://unknown.com') // '/api'
+ */
+export function getApiPrefix(registryUrl: string): string {
+  if (!registryUrl) {
+    return '/api';
+  }
+  const normalized = registryUrl.endsWith('/') ? registryUrl.slice(0, -1) : registryUrl;
+  return REGISTRY_API_PREFIX[normalized] || '/api';
+}
 
 /**
  * Parsed skill name result
@@ -57,7 +92,7 @@ export interface ParsedSkillIdentifier {
  * @returns Scope string (e.g., "@kanyun") or null if not found
  *
  * @example
- * getScopeForRegistry('https://reskill-test.zhenguanyu.com') // '@kanyun'
+ * getScopeForRegistry('https://rush-test.zhenguanyu.com') // '@kanyun'
  * getScopeForRegistry('https://unknown.com') // null
  */
 export function getScopeForRegistry(registry: string): string | null {
@@ -90,8 +125,8 @@ export type ScopeRegistries = Record<string, string>;
  * @returns Registry URL (with trailing slash) or null if not found
  *
  * @example
- * getRegistryForScope('@kanyun') // 'https://reskill-test.zhenguanyu.com/'
- * getRegistryForScope('kanyun') // 'https://reskill-test.zhenguanyu.com/'
+ * getRegistryForScope('@kanyun') // 'https://rush-test.zhenguanyu.com/'
+ * getRegistryForScope('kanyun') // 'https://rush-test.zhenguanyu.com/'
  * getRegistryForScope('@unknown') // null
  * getRegistryForScope('@mycompany', { '@mycompany': 'https://my.registry.com/' }) // 'https://my.registry.com/'
  */
@@ -136,8 +171,8 @@ export function getRegistryForScope(
  * @throws Error if scope is provided but not found in the registry map
  *
  * @example
- * getRegistryUrl('@kanyun') // 'https://reskill-test.zhenguanyu.com/'
- * getRegistryUrl('kanyun') // 'https://reskill-test.zhenguanyu.com/'
+ * getRegistryUrl('@kanyun') // 'https://rush-test.zhenguanyu.com/'
+ * getRegistryUrl('kanyun') // 'https://rush-test.zhenguanyu.com/'
  * getRegistryUrl(null) // 'https://reskill.info/'
  * getRegistryUrl('') // 'https://reskill.info/'
  * getRegistryUrl('@unknown') // throws Error
