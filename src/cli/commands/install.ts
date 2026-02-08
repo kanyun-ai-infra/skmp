@@ -532,9 +532,7 @@ async function installMultiSkillFromRepo(
   const { installed, skipped } = result;
 
   if (installed.length === 0 && skipped.length > 0) {
-    const skipLines = skipped.map(
-      (s) => `  ${chalk.dim('–')} ${s.name}: ${chalk.dim(s.reason)}`,
-    );
+    const skipLines = skipped.map((s) => `  ${chalk.dim('–')} ${s.name}: ${chalk.dim(s.reason)}`);
     p.note(skipLines.join('\n'), chalk.yellow('All skills were already installed'));
     p.log.info('Use --force to reinstall.');
     return;
