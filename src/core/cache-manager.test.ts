@@ -404,6 +404,54 @@ describe('CacheManager', () => {
       expect(skillJson.name).toBe('deep-skill');
     });
 
+    it('should fallback to searching child directories when subPath not found at root', async () => {
+      // Simulates: github:anthropics/skills/frontend-design
+      // Repo structure: skills/frontend-design/ (subPath "frontend-design" not at root)
+      const repoUrl = createLocalMonorepo([
+        { name: 'frontend-design', version: '1.0.0', subPath: 'skills/frontend-design' },
+        { name: 'pdf', version: '2.0.0', subPath: 'skills/pdf' },
+      ]);
+
+      const parsed: ParsedSkillRef = {
+        registry: 'github',
+        owner: 'anthropics',
+        repo: 'skills',
+        subPath: 'frontend-design', // Not at root, but exists under skills/
+        raw: 'github:anthropics/skills/frontend-design',
+      };
+
+      const result = await cacheManager.cache(repoUrl, parsed, 'main', 'v1.0.0');
+
+      // Verify the correct skill contents are cached
+      expect(fs.existsSync(path.join(result.path, 'SKILL.md'))).toBe(true);
+      expect(fs.existsSync(path.join(result.path, 'skill.json'))).toBe(true);
+
+      const skillJson = JSON.parse(fs.readFileSync(path.join(result.path, 'skill.json'), 'utf-8'));
+      expect(skillJson.name).toBe('frontend-design');
+      expect(skillJson.version).toBe('1.0.0');
+
+      // Verify pdf skill is NOT present
+      expect(fs.existsSync(path.join(result.path, 'skills', 'pdf'))).toBe(false);
+    });
+
+    it('should still throw error when subPath not found even with fallback', async () => {
+      const repoUrl = createLocalMonorepo([
+        { name: 'skill-a', version: '1.0.0', subPath: 'skills/skill-a' },
+      ]);
+
+      const parsed: ParsedSkillRef = {
+        registry: 'file',
+        owner: 'local',
+        repo: 'monorepo',
+        subPath: 'totally-nonexistent',
+        raw: `${repoUrl}/totally-nonexistent`,
+      };
+
+      await expect(cacheManager.cache(repoUrl, parsed, 'main', 'v1.0.0')).rejects.toThrow(
+        /not found/i,
+      );
+    });
+
     it('should cache entire repo when no subPath specified', async () => {
       const repoUrl = createLocalMonorepo([
         { name: 'skill-a', version: '1.0.0', subPath: 'skills/skill-a' },

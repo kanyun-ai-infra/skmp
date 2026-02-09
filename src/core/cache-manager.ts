@@ -142,10 +142,17 @@ export class CacheManager {
 
     // If has subPath, only keep subdirectory
     if (parsed.subPath) {
-      const subDir = path.join(tempPath, parsed.subPath);
+      let subDir = path.join(tempPath, parsed.subPath);
       if (!exists(subDir)) {
-        remove(tempPath);
-        throw new Error(`Subpath ${parsed.subPath} not found in repository`);
+        // Fallback: search for subPath in immediate subdirectories of the repo root.
+        // This handles common monorepo layouts where skills are nested under a
+        // directory (e.g., repo "skills" containing "skills/frontend-design").
+        const fallback = this.findSubPathInChildren(tempPath, parsed.subPath);
+        if (!fallback) {
+          remove(tempPath);
+          throw new Error(`Subpath ${parsed.subPath} not found in repository`);
+        }
+        subDir = fallback;
       }
       copyDir(subDir, cachePath, { exclude: ['.git'] });
     } else {
@@ -159,6 +166,36 @@ export class CacheManager {
     remove(tempPath);
 
     return { path: cachePath, commit };
+  }
+
+  /**
+   * Search for a subpath inside immediate child directories of the repo root.
+   *
+   * When a user specifies `github:org/monorepo/skill-name`, the subPath is
+   * "skill-name". If the repo layout is `monorepo/skills/skill-name/`, the
+   * direct lookup fails. This method scans one level of child directories
+   * and returns the first match.
+   *
+   * @returns Absolute path to the resolved subdirectory, or null if not found
+   */
+  private findSubPathInChildren(repoRoot: string, subPath: string): string | null {
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(repoRoot, { withFileTypes: true });
+    } catch {
+      return null;
+    }
+
+    for (const entry of entries) {
+      if (entry.isDirectory() && !entry.name.startsWith('.')) {
+        const candidate = path.join(repoRoot, entry.name, subPath);
+        if (exists(candidate)) {
+          return candidate;
+        }
+      }
+    }
+
+    return null;
   }
 
   /**
