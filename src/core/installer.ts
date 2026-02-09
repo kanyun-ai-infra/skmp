@@ -494,6 +494,7 @@ export class Installer {
 
       // Quote description to prevent YAML injection from special characters
       const safeDescription = parsed.description.replace(/"/g, '\\"');
+      const agent = getAgentConfig('cursor');
       const bridgeContent = `---
 description: "${safeDescription}"
 globs: 
@@ -501,7 +502,7 @@ alwaysApply: false
 ---
 
 ${CURSOR_BRIDGE_MARKER}
-@file .cursor/skills/${skillName}/SKILL.md
+@file ${agent.skillsDir}/${skillName}/SKILL.md
 `;
 
       fs.writeFileSync(bridgePath, bridgeContent, 'utf-8');
