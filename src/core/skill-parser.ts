@@ -513,6 +513,9 @@ export function discoverSkillsInDir(basePath: string): ParsedSkillWithPath[] {
 /**
  * Filter skills by name (case-insensitive exact match).
  *
+ * Note: an empty `names` array returns an empty result (not all skills).
+ * Callers should check `names.length` before calling if "no filter = all" is desired.
+ *
  * @param skills - List of discovered skills
  * @param names - Skill names to match (e.g. from --skill pdf commit)
  * @returns Skills whose name matches any of the given names

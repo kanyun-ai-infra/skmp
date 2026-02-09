@@ -811,6 +811,8 @@ export class SkillManager {
     }> = [];
     const skipped: Array<{ name: string; reason: string }> = [];
 
+    const skillSource = `${parsed.registry}:${parsed.owner}/${parsed.repo}${parsed.subPath ? `/${parsed.subPath}` : ''}`;
+
     for (const skillInfo of selected) {
       const semanticVersion = skillInfo.version ?? gitRef;
 
@@ -846,7 +848,7 @@ export class SkillManager {
 
       if (!this.isGlobal) {
         this.lockManager.lockSkill(skillInfo.name, {
-          source: `${parsed.registry}:${parsed.owner}/${parsed.repo}${parsed.subPath ? `/${parsed.subPath}` : ''}`,
+          source: skillSource,
           version: semanticVersion,
           ref: gitRef,
           resolved: repoUrl,
@@ -867,7 +869,7 @@ export class SkillManager {
           name: skillInfo.name,
           path: skillInfo.dirPath,
           version: semanticVersion,
-          source: `${parsed.registry}:${parsed.owner}/${parsed.repo}`,
+          source: skillSource,
         },
         results,
       });
