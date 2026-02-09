@@ -13,6 +13,7 @@ import { homedir, platform } from 'node:os';
 import * as path from 'node:path';
 import type { AgentType } from './agent-registry.js';
 import { getAgentConfig } from './agent-registry.js';
+import { parseSkillMd } from './skill-parser.js';
 
 /**
  * Installation mode
@@ -53,6 +54,12 @@ export interface InstallerOptions {
 
 const AGENTS_DIR = '.agents';
 const SKILLS_SUBDIR = 'skills';
+
+/**
+ * Marker comment in auto-generated Cursor bridge rule files.
+ * Used to distinguish auto-generated files from manually created ones.
+ */
+export const CURSOR_BRIDGE_MARKER = '<!-- reskill:auto-generated -->';
 
 /**
  * Default files to exclude when copying skills
@@ -301,6 +308,11 @@ export class Installer {
         remove(agentDir);
         copyDirectory(sourcePath, agentDir);
 
+        // Create Cursor bridge rule file (project-level only)
+        if (agentType === 'cursor' && !this.isGlobal) {
+          this.createCursorBridgeRule(sanitized, sourcePath);
+        }
+
         return {
           success: true,
           path: agentDir,
@@ -325,6 +337,11 @@ export class Installer {
         ensureDir(agentDir);
         copyDirectory(sourcePath, agentDir);
 
+        // Create Cursor bridge rule file (project-level only)
+        if (agentType === 'cursor' && !this.isGlobal) {
+          this.createCursorBridgeRule(sanitized, sourcePath);
+        }
+
         return {
           success: true,
           path: agentDir,
@@ -332,6 +349,11 @@ export class Installer {
           mode: 'symlink',
           symlinkFailed: true,
         };
+      }
+
+      // Create Cursor bridge rule file (project-level only)
+      if (agentType === 'cursor' && !this.isGlobal) {
+        this.createCursorBridgeRule(sanitized, sourcePath);
       }
 
       return {
@@ -396,6 +418,12 @@ export class Installer {
     }
 
     remove(skillPath);
+
+    // Remove Cursor bridge rule file (project-level only)
+    if (agentType === 'cursor' && !this.isGlobal) {
+      this.removeCursorBridgeRule(sanitizeName(skillName));
+    }
+
     return true;
   }
 
@@ -433,6 +461,83 @@ export class Installer {
       .readdirSync(skillsDir, { withFileTypes: true })
       .filter((entry) => entry.isDirectory() || entry.isSymbolicLink())
       .map((entry) => entry.name);
+  }
+
+  /**
+   * Create a Cursor bridge rule file (.mdc) for the installed skill.
+   *
+   * Cursor does not natively read SKILL.md from .cursor/skills/.
+   * This bridge file in .cursor/rules/ references the SKILL.md via @file directive,
+   * allowing Cursor to discover and activate the skill based on the description.
+   *
+   * @param skillName - Sanitized skill name
+   * @param sourcePath - Source directory containing SKILL.md
+   */
+  private createCursorBridgeRule(skillName: string, sourcePath: string): void {
+    try {
+      const skillMdPath = path.join(sourcePath, 'SKILL.md');
+      if (!fs.existsSync(skillMdPath)) {
+        return;
+      }
+
+      const content = fs.readFileSync(skillMdPath, 'utf-8');
+      const parsed = parseSkillMd(content);
+      if (!parsed || !parsed.description) {
+        return;
+      }
+
+      const rulesDir = path.join(this.cwd, '.cursor', 'rules');
+      ensureDir(rulesDir);
+
+      // Do not overwrite manually created rule files (without auto-generated marker)
+      const bridgePath = path.join(rulesDir, `${skillName}.mdc`);
+      if (fs.existsSync(bridgePath)) {
+        const existingContent = fs.readFileSync(bridgePath, 'utf-8');
+        if (!existingContent.includes(CURSOR_BRIDGE_MARKER)) {
+          return;
+        }
+      }
+
+      const bridgeContent = `---
+description: ${parsed.description}
+globs: 
+alwaysApply: false
+---
+
+${CURSOR_BRIDGE_MARKER}
+@file .cursor/skills/${skillName}/SKILL.md
+`;
+
+      fs.writeFileSync(bridgePath, bridgeContent, 'utf-8');
+    } catch {
+      // Silently skip bridge file creation on errors
+    }
+  }
+
+  /**
+   * Remove a Cursor bridge rule file (.mdc) for the uninstalled skill.
+   *
+   * Only removes files that contain the auto-generated marker to avoid
+   * deleting manually created rule files.
+   *
+   * @param skillName - Sanitized skill name
+   */
+  private removeCursorBridgeRule(skillName: string): void {
+    try {
+      const bridgePath = path.join(this.cwd, '.cursor', 'rules', `${skillName}.mdc`);
+      if (!fs.existsSync(bridgePath)) {
+        return;
+      }
+
+      const content = fs.readFileSync(bridgePath, 'utf-8');
+      if (!content.includes(CURSOR_BRIDGE_MARKER)) {
+        return;
+      }
+
+      fs.rmSync(bridgePath);
+    } catch {
+      // Silently skip bridge file removal on errors
+    }
   }
 }
 
