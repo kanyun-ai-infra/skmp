@@ -268,6 +268,8 @@ export interface InstallOptions {
   mode?: 'symlink' | 'copy';
   /** Skip confirmation */
   yes?: boolean;
+  /** Registry URL override (for registry-based installs) */
+  registry?: string;
 }
 
 /**
@@ -287,35 +289,35 @@ export interface ListOptions {
 }
 
 // ============================================================================
-// Registry API 相关类型（用于页面发布功能适配）
+// Registry API types (for web-published skill support)
 // ============================================================================
 
 /**
- * Skill 来源类型
- * - registry: CLI 发布（支持版本管理）
- * - github/gitlab: 页面发布 Remote URL（Git 仓库）
- * - oss_url/custom_url: 页面发布 Remote URL（HTTP 链接）
- * - local: 页面发布 Local Folder（上传到 OSS）
+ * Skill source type
+ * - registry: published via CLI (supports versioning)
+ * - github/gitlab: web-published via remote Git URL
+ * - oss_url/custom_url: web-published via remote HTTP URL
+ * - local: web-published via local folder (uploaded to OSS)
  */
 export type SourceType = 'registry' | 'github' | 'gitlab' | 'oss_url' | 'custom_url' | 'local';
 
 /**
- * Registry API 返回的 Skill 基本信息
- * 用于 install 命令判断安装逻辑分支
+ * Basic skill info returned by the Registry API.
+ * Used by the install command to determine the installation logic branch.
  */
 export interface SkillInfo {
-  /** Skill 完整名称，如 @kanyun/my-skill */
+  /** Full skill name, e.g. @kanyun/my-skill */
   name: string;
-  /** 描述 */
+  /** Description */
   description?: string;
-  /** 来源类型，默认 'registry'（CLI 发布） */
+  /** Source type, defaults to 'registry' (CLI-published) */
   source_type?: SourceType;
-  /** 来源 URL（仅页面发布时有值） */
+  /** Source URL (only present for web-published skills) */
   source_url?: string;
-  /** 发布者 ID */
+  /** Publisher ID */
   publisher_id?: string;
-  /** 创建时间 */
+  /** Creation timestamp */
   created_at?: string;
-  /** 更新时间 */
+  /** Last update timestamp */
   updated_at?: string;
 }

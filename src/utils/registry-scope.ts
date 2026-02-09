@@ -6,8 +6,8 @@
  */
 
 /**
- * 公共 Registry URL
- * 用于无 scope 的 skill 安装
+ * Public Registry URL
+ * Used for installing skills without a scope
  */
 export const PUBLIC_REGISTRY = 'https://reskill.info/';
 
@@ -17,46 +17,13 @@ export const PUBLIC_REGISTRY = 'https://reskill.info/';
  */
 const REGISTRY_SCOPE_MAP: Record<string, string> = {
   // rush-app (private registry, new)
-  'https://rush-test.zhenguanyu.com': '@kanyun',
+  'https://rush-test.zhenguanyu.com': '@kanyun-test',
   'https://rush.zhenguanyu.com': '@kanyun',
   // reskill-app (private registry, legacy)
-  'https://reskill-test.zhenguanyu.com': '@kanyun',
+  'https://reskill-test.zhenguanyu.com': '@kanyun-test',
   // Local development
-  'http://localhost:3000': '@kanyun',
+  'http://localhost:3000': '@kanyun-test',
 };
-
-/**
- * Registry API prefix mapping
- *
- * rush-app hosts reskill APIs under /api/reskill/ prefix.
- * Default for unlisted registries: '/api'
- */
-const REGISTRY_API_PREFIX: Record<string, string> = {
-  'https://rush-test.zhenguanyu.com': '/api/reskill',
-  'https://rush.zhenguanyu.com': '/api/reskill',
-  'http://localhost:3000': '/api/reskill',
-  // Note: reskill-test.zhenguanyu.com (legacy reskill-app) is intentionally
-  // NOT listed here — it uses the default '/api' prefix.
-};
-
-/**
- * Get the API path prefix for a given registry URL
- *
- * @param registryUrl - Registry URL
- * @returns API prefix string (e.g., '/api' or '/api/reskill')
- *
- * @example
- * getApiPrefix('https://rush-test.zhenguanyu.com') // '/api/reskill'
- * getApiPrefix('https://reskill.info') // '/api'
- * getApiPrefix('https://unknown.com') // '/api'
- */
-export function getApiPrefix(registryUrl: string): string {
-  if (!registryUrl) {
-    return '/api';
-  }
-  const normalized = registryUrl.endsWith('/') ? registryUrl.slice(0, -1) : registryUrl;
-  return REGISTRY_API_PREFIX[normalized] || '/api';
-}
 
 /**
  * Parsed skill name result
@@ -72,14 +39,14 @@ export interface ParsedSkillName {
 
 /**
  * Parsed skill identifier result (with version)
- * 用于 install 命令解析 skill 标识
+ * Used by the install command to parse skill identifiers
  */
 export interface ParsedSkillIdentifier {
-  /** Scope including @ prefix, e.g., "@kanyun"。公共 Registry 时为 null */
+  /** Scope including @ prefix, e.g., "@kanyun". Null for public registry skills */
   scope: string | null;
   /** Short name without scope, e.g., "planning-with-files" */
   name: string;
-  /** Version or tag, e.g., "2.4.5" or "latest"。未指定时为 undefined */
+  /** Version or tag, e.g., "2.4.5" or "latest". Undefined when not specified */
   version: string | undefined;
   /** Full name without version, e.g., "@kanyun/planning-with-files" */
   fullName: string;
@@ -271,21 +238,21 @@ export function getShortName(skillName: string): string {
 /**
  * Parse a skill identifier into its components (with version support)
  *
- * 支持私有 Registry（带 @scope）和公共 Registry（无 scope）两种格式。
+ * Supports both private registry (with @scope) and public registry (without scope) formats.
  *
  * @param identifier - Skill identifier string
  * @returns Parsed skill identifier with scope, name, version, and fullName
  * @throws Error if identifier is invalid
  *
  * @example
- * // 私有 Registry
+ * // Private registry
  * parseSkillIdentifier('@kanyun/planning-with-files')
  * // { scope: '@kanyun', name: 'planning-with-files', version: undefined, fullName: '@kanyun/planning-with-files' }
  *
  * parseSkillIdentifier('@kanyun/skill@2.4.5')
  * // { scope: '@kanyun', name: 'skill', version: '2.4.5', fullName: '@kanyun/skill' }
  *
- * // 公共 Registry
+ * // Public registry
  * parseSkillIdentifier('planning-with-files')
  * // { scope: null, name: 'planning-with-files', version: undefined, fullName: 'planning-with-files' }
  *
@@ -295,27 +262,27 @@ export function getShortName(skillName: string): string {
 export function parseSkillIdentifier(identifier: string): ParsedSkillIdentifier {
   const trimmed = identifier.trim();
 
-  // 空字符串或仅空白
+  // Empty string or whitespace only
   if (!trimmed) {
     throw new Error('Invalid skill identifier: empty string');
   }
 
-  // 以 @@ 开头无效
+  // Starting with @@ is invalid
   if (trimmed.startsWith('@@')) {
     throw new Error('Invalid skill identifier: invalid scope format');
   }
 
-  // 只有 @ 无效
+  // Bare @ is invalid
   if (trimmed === '@') {
     throw new Error('Invalid skill identifier: missing scope and name');
   }
 
-  // 带 scope 的格式: @scope/name[@version]
+  // Scoped format: @scope/name[@version]
   if (trimmed.startsWith('@')) {
-    // 正则匹配: @scope/name[@version]
-    // scope: 以 @ 开头，后面跟字母数字、连字符、下划线
-    // name: 字母数字、连字符、下划线
-    // version: 可选，@ 后跟任意非空字符
+    // Regex: @scope/name[@version]
+    // scope: starts with @, followed by alphanumeric, hyphens, underscores
+    // name: alphanumeric, hyphens, underscores
+    // version: optional, @ followed by any non-empty string
     const scopedMatch = trimmed.match(/^(@[\w-]+)\/([\w-]+)(?:@(.+))?$/);
 
     if (!scopedMatch) {
@@ -332,8 +299,8 @@ export function parseSkillIdentifier(identifier: string): ParsedSkillIdentifier 
     };
   }
 
-  // 无 scope 的格式: name[@version]（公共 Registry）
-  // name 不能包含 /（否则可能是 git shorthand）
+  // Unscoped format: name[@version] (public registry)
+  // name must not contain / (otherwise it might be a git shorthand)
   const unscopedMatch = trimmed.match(/^([\w-]+)(?:@(.+))?$/);
 
   if (!unscopedMatch) {

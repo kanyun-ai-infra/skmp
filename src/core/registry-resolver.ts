@@ -9,7 +9,6 @@
  */
 
 import {
-  getApiPrefix,
   getRegistryUrl,
   getShortName,
   type ParsedSkillIdentifier,
@@ -57,17 +56,17 @@ export class RegistryResolver {
    * - Registry shorthand: github:user/repo, gitlab:org/repo
    */
   static isRegistryRef(ref: string): boolean {
-    // 排除 Git SSH 格式 (git@...)
+    // Exclude Git SSH format (git@...)
     if (ref.startsWith('git@') || ref.startsWith('git://')) {
       return false;
     }
 
-    // 排除 .git 结尾的 URL
+    // Exclude URLs ending with .git
     if (ref.includes('.git')) {
       return false;
     }
 
-    // 排除 HTTP/HTTPS/OSS URL
+    // Exclude HTTP/HTTPS/OSS URLs
     if (
       ref.startsWith('http://') ||
       ref.startsWith('https://') ||
@@ -77,21 +76,21 @@ export class RegistryResolver {
       return false;
     }
 
-    // 排除 registry shorthand 格式 (github:, gitlab:, custom.com:)
-    // 这类格式是 "registry:owner/repo" 而不是 "@scope/name"
+    // Exclude registry shorthand format (github:, gitlab:, custom.com:)
+    // These follow "registry:owner/repo" pattern, not "@scope/name"
     if (/^[a-zA-Z0-9.-]+:[^@]/.test(ref)) {
       return false;
     }
 
-    // 检查是否是 @scope/name 格式（私有 registry）
+    // Check for @scope/name format (private registry)
     if (ref.startsWith('@') && ref.includes('/')) {
-      // @scope/name 或 @scope/name@version
+      // @scope/name or @scope/name@version
       const scopeNamePattern = /^@[a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+(@[a-zA-Z0-9._-]+)?$/;
       return scopeNamePattern.test(ref);
     }
 
-    // 检查是否是简单的 name 或 name@version 格式（公共 registry）
-    // 简单名称只包含字母、数字、连字符、下划线和点
+    // Check for simple name or name@version format (public registry)
+    // Simple names contain only letters, digits, hyphens, underscores, and dots
     const namePattern = /^[a-zA-Z0-9._-]+(@[a-zA-Z0-9._-]+)?$/;
     return namePattern.test(ref);
   }
@@ -100,6 +99,7 @@ export class RegistryResolver {
    * Resolve a registry skill reference
    *
    * @param ref - Skill reference (e.g., "@kanyun/planning-with-files@2.4.5" or "my-skill@latest")
+   * @param overrideRegistryUrl - Optional registry URL override (bypasses scope-based lookup)
    * @returns Resolved skill information including downloaded tarball
    *
    * @example
@@ -107,22 +107,22 @@ export class RegistryResolver {
    * console.log(result.shortName); // 'planning-with-files'
    * console.log(result.version); // '2.4.5'
    */
-  async resolve(ref: string): Promise<RegistryResolveResult> {
-    // 1. 解析 skill 标识
+  async resolve(ref: string, overrideRegistryUrl?: string): Promise<RegistryResolveResult> {
+    // 1. Parse skill identifier
     const parsed = parseSkillIdentifier(ref);
     const shortName = getShortName(parsed.fullName);
 
-    // 2. 获取 registry URL
-    const registryUrl = getRegistryUrl(parsed.scope);
+    // 2. Get registry URL (CLI override takes precedence)
+    const registryUrl = overrideRegistryUrl || getRegistryUrl(parsed.scope);
 
-    // 3. 创建 client 并解析版本
-    const client = new RegistryClient({ registry: registryUrl, apiPrefix: getApiPrefix(registryUrl) });
+    // 3. Create client and resolve version
+    const client = new RegistryClient({ registry: registryUrl });
     const version = await client.resolveVersion(parsed.fullName, parsed.version);
 
-    // 4. 下载 tarball
+    // 4. Download tarball
     const { tarball, integrity } = await client.downloadSkill(parsed.fullName, version);
 
-    // 5. 验证 integrity
+    // 5. Verify integrity
     const isValid = RegistryClient.verifyIntegrity(tarball, integrity);
     if (!isValid) {
       throw new Error(`Integrity verification failed for ${ref}`);
@@ -148,7 +148,7 @@ export class RegistryResolver {
   async extract(tarball: Buffer, destDir: string): Promise<string> {
     await extractTarballBuffer(tarball, destDir);
 
-    // 获取顶层目录名（即 skill 名称）
+    // Get top-level directory name (i.e. skill name)
     const topDir = await getTarballTopDir(tarball);
     if (topDir) {
       return `${destDir}/${topDir}`;

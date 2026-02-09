@@ -100,18 +100,14 @@ describe('RegistryClient', () => {
       expect(client).toBeInstanceOf(RegistryClient);
     });
 
-    it('should create client with apiPrefix', () => {
-      client = new RegistryClient({ registry: testRegistry, apiPrefix: '/api/reskill' });
-      expect(client).toBeInstanceOf(RegistryClient);
-    });
   });
 
   // ============================================================================
-  // apiPrefix support tests
+  // API URL construction tests
   // ============================================================================
 
-  describe('apiPrefix support', () => {
-    it('should use /api prefix by default for whoami', async () => {
+  describe('API URL construction', () => {
+    it('should use /api prefix for all registries', async () => {
       client = new RegistryClient({ registry: testRegistry });
 
       mockFetch.mockResolvedValueOnce({
@@ -123,24 +119,7 @@ describe('RegistryClient', () => {
       await client.whoami();
 
       expect(mockFetch).toHaveBeenCalledWith(
-        `${testRegistry}/api/auth/me`,
-        expect.any(Object),
-      );
-    });
-
-    it('should use custom apiPrefix for whoami', async () => {
-      client = new RegistryClient({ registry: testRegistry, apiPrefix: '/api/reskill' });
-
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () =>
-          Promise.resolve({ success: true, user: { id: 'u', handle: 'h' } }),
-      });
-
-      await client.whoami();
-
-      expect(mockFetch).toHaveBeenCalledWith(
-        `${testRegistry}/api/reskill/auth/me`,
+        `${testRegistry}/api/skill-auth/me`,
         expect.any(Object),
       );
     });
@@ -148,7 +127,6 @@ describe('RegistryClient', () => {
     it('should strip trailing slash from registry before building API URL', async () => {
       client = new RegistryClient({
         registry: 'https://rush-test.zhenguanyu.com/',
-        apiPrefix: '/api/reskill',
       });
 
       mockFetch.mockResolvedValueOnce({
@@ -159,138 +137,8 @@ describe('RegistryClient', () => {
 
       await client.whoami();
 
-      // Should NOT produce double slash: https://rush-test.zhenguanyu.com//api/reskill/auth/me
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://rush-test.zhenguanyu.com/api/reskill/auth/me',
-        expect.any(Object),
-      );
-    });
-
-    it('should use custom apiPrefix for loginCli', async () => {
-      client = new RegistryClient({
-        registry: testRegistry,
-        token: testToken,
-        apiPrefix: '/api/reskill',
-      });
-
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () =>
-          Promise.resolve({ success: true, user: { id: 'u', handle: 'h' } }),
-      });
-
-      await client.loginCli();
-
-      expect(mockFetch).toHaveBeenCalledWith(
-        `${testRegistry}/api/reskill/auth/login-cli`,
-        expect.any(Object),
-      );
-    });
-
-    it('should use custom apiPrefix for getSkillInfo', async () => {
-      client = new RegistryClient({
-        registry: testRegistry,
-        token: testToken,
-        apiPrefix: '/api/reskill',
-      });
-
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () =>
-          Promise.resolve({ success: true, data: { name: '@kanyun/test' } }),
-      });
-
-      await client.getSkillInfo('@kanyun/test');
-
-      expect(mockFetch).toHaveBeenCalledWith(
-        `${testRegistry}/api/reskill/skills/${encodeURIComponent('@kanyun/test')}`,
-        expect.any(Object),
-      );
-    });
-
-    it('should use custom apiPrefix for downloadSkill', async () => {
-      const mockTarballContent = Buffer.from('mock tarball content');
-
-      client = new RegistryClient({
-        registry: testRegistry,
-        token: testToken,
-        apiPrefix: '/api/reskill',
-      });
-
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        headers: new Headers({ 'x-integrity': 'sha256-hash' }),
-        arrayBuffer: () => Promise.resolve(mockTarballContent.buffer),
-      });
-
-      await client.downloadSkill('@kanyun/test', '1.0.0');
-
-      expect(mockFetch).toHaveBeenCalledWith(
-        `${testRegistry}/api/reskill/skills/${encodeURIComponent('@kanyun/test')}/versions/1.0.0/download`,
-        expect.any(Object),
-      );
-    });
-
-    it('should use custom apiPrefix for publish', async () => {
-      const tempDir = (await import('node:fs')).mkdtempSync(
-        (await import('node:path')).join(
-          (await import('node:os')).tmpdir(),
-          'reskill-prefix-test-',
-        ),
-      );
-      (await import('node:fs')).writeFileSync(`${tempDir}/SKILL.md`, '# Test');
-
-      client = new RegistryClient({
-        registry: testRegistry,
-        token: testToken,
-        apiPrefix: '/api/reskill',
-      });
-
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () => Promise.resolve({ success: true }),
-      });
-
-      const payload = {
-        version: '1.0.0',
-        description: 'test',
-        files: ['SKILL.md'],
-        skillJson: { name: 'test', version: '1.0.0', description: 'test' },
-        repositoryUrl: '',
-        sourceRef: '',
-        gitRef: '',
-        gitCommit: '',
-        entry: 'SKILL.md',
-        integrity: 'sha512-test',
-      };
-
-      await client.publish('test-skill', payload, tempDir);
-
-      expect(mockFetch).toHaveBeenCalledWith(
-        `${testRegistry}/api/reskill/skills/publish`,
-        expect.any(Object),
-      );
-
-      (await import('node:fs')).rmSync(tempDir, { recursive: true, force: true });
-    });
-
-    it('should use custom apiPrefix for resolveVersion with tag', async () => {
-      client = new RegistryClient({
-        registry: testRegistry,
-        token: testToken,
-        apiPrefix: '/api/reskill',
-      });
-
-      mockFetch.mockResolvedValueOnce({
-        ok: true,
-        json: () =>
-          Promise.resolve({ 'dist-tags': { latest: '1.0.0' } }),
-      });
-
-      await client.resolveVersion('@kanyun/test', 'latest');
-
-      expect(mockFetch).toHaveBeenCalledWith(
-        `${testRegistry}/api/reskill/skills/${encodeURIComponent('@kanyun/test')}`,
+        'https://rush-test.zhenguanyu.com/api/skill-auth/me',
         expect.any(Object),
       );
     });
@@ -320,7 +168,7 @@ describe('RegistryClient', () => {
       const result = await client.whoami();
 
       expect(mockFetch).toHaveBeenCalledWith(
-        `${testRegistry}/api/auth/me`,
+        `${testRegistry}/api/skill-auth/me`,
         expect.objectContaining({
           method: 'GET',
           headers: expect.objectContaining({
@@ -418,7 +266,7 @@ describe('RegistryClient', () => {
   // ============================================================================
 
   describe('loginCli', () => {
-    it('should send POST request to /api/auth/login-cli', async () => {
+    it('should send POST request to /api/skill-auth/login-cli', async () => {
       client = new RegistryClient({ registry: testRegistry, token: testToken });
 
       const mockResponse = {
@@ -438,7 +286,7 @@ describe('RegistryClient', () => {
       const result = await client.loginCli();
 
       expect(mockFetch).toHaveBeenCalledWith(
-        `${testRegistry}/api/auth/login-cli`,
+        `${testRegistry}/api/skill-auth/login-cli`,
         expect.objectContaining({
           method: 'POST',
           headers: expect.objectContaining({

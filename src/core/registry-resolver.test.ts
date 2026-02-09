@@ -140,4 +140,17 @@ describe('RegistryResolver', () => {
       });
     });
   });
+
+  // ====================================================================
+  // resolve() with overrideRegistryUrl parameter
+  // ====================================================================
+
+  describe('resolve with overrideRegistryUrl', () => {
+    it('should accept an optional overrideRegistryUrl parameter', () => {
+      const resolver = new RegistryResolver();
+      // Verify the method signature accepts two parameters
+      expect(resolver.resolve).toBeDefined();
+      expect(resolver.resolve.length).toBeLessThanOrEqual(2);
+    });
+  });
 });

@@ -266,4 +266,70 @@ describe('CLI Integration: install with custom registries', () => {
       // Should at least run without crashing
     });
   });
+
+  // ============================================================================
+  // --registry CLI option tests
+  // ============================================================================
+
+  describe('--registry CLI option', () => {
+    it('should show --registry option in help output', () => {
+      const { stdout, exitCode } = runCli('install --help', tempDir);
+      expect(exitCode).toBe(0);
+      expect(stdout).toContain('--registry');
+      expect(stdout).toContain('-r');
+    });
+
+    it('should accept --registry with a URL value', () => {
+      // Use a non-existent registry — will fail to connect, but should not
+      // fail with "unknown option" or argument parsing errors
+      const { stdout, stderr } = runCli(
+        'install my-skill -y --agent cursor --mode copy --registry https://fake-registry.example.com',
+        tempDir,
+      );
+      const output = stdout + stderr;
+
+      // Should NOT contain unknown option errors
+      expect(output).not.toContain('unknown option');
+      expect(output).not.toContain("error: unknown option '--registry'");
+    });
+
+    it('should accept -r shorthand for --registry', () => {
+      const { stdout, stderr } = runCli(
+        'install my-skill -y -a cursor --mode copy -r https://fake-registry.example.com',
+        tempDir,
+      );
+      const output = stdout + stderr;
+
+      // Should NOT contain unknown option errors
+      expect(output).not.toContain('unknown option');
+      expect(output).not.toContain("error: unknown option '-r'");
+    });
+
+    it('should pass --registry URL to the install flow for registry-based skills', () => {
+      // Install a scoped skill with explicit registry override
+      // This will fail due to fake URL, but should attempt to use the provided registry
+      const { stdout, stderr } = runCli(
+        'install @test-scope/my-skill -y --agent cursor --mode copy --registry https://fake-registry.example.com',
+        tempDir,
+      );
+      const output = stdout + stderr;
+
+      // The error should be network-related (fetch failed, ENOTFOUND, etc.),
+      // NOT "Unknown scope" — because --registry should bypass scope lookup
+      expect(output).not.toContain('Unknown scope');
+    });
+
+    it('should work without --registry (default behavior)', () => {
+      // Without --registry, should use the default scope-based lookup
+      // @unknown-scope should trigger "Unknown scope" error when no --registry is provided
+      const { stdout, stderr } = runCli(
+        'install @unknown-scope/my-skill -y --agent cursor --mode copy',
+        tempDir,
+      );
+      const output = stdout + stderr;
+
+      // Should trigger scope lookup error (not a CLI parsing error)
+      expect(output).toContain('Unknown scope');
+    });
+  });
 });

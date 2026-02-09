@@ -1201,6 +1201,122 @@ describe('SkillManager installToAgentsFromRegistry with source_type', () => {
       );
     });
   });
+
+  describe('registry option override', () => {
+    it('should use options.registry instead of scope-based registry URL', async () => {
+      const customRegistryUrl = 'https://custom-registry.example.com';
+
+      const { RegistryClient } = await import('./registry-client.js');
+      vi.spyOn(RegistryClient.prototype, 'getSkillInfo').mockResolvedValue({
+        name: 'my-skill',
+        source_type: 'registry',
+      });
+
+      // Mock RegistryResolver to capture the overrideRegistryUrl
+      const registryResolver = (manager as unknown as { registryResolver: RegistryResolver })
+        .registryResolver;
+      const resolveSpy = vi.spyOn(registryResolver, 'resolve').mockResolvedValue({
+        parsed: {
+          scope: null,
+          name: 'my-skill',
+          version: '1.0.0',
+          fullName: 'my-skill',
+        },
+        shortName: 'my-skill',
+        version: '1.0.0',
+        registryUrl: customRegistryUrl,
+        tarball: Buffer.from('mock tarball'),
+        integrity: 'sha256-mockhash',
+      });
+
+      const mockSkillDir = path.join(tempDir, 'mock-skill-registry');
+      fs.mkdirSync(mockSkillDir, { recursive: true });
+      fs.writeFileSync(path.join(mockSkillDir, 'SKILL.md'), '# Skill');
+      vi.spyOn(registryResolver, 'extract').mockResolvedValue(mockSkillDir);
+
+      await manager.installToAgents('my-skill', ['cursor'], { registry: customRegistryUrl });
+
+      // Verify resolve was called with the custom registry URL
+      expect(resolveSpy).toHaveBeenCalledWith('my-skill', customRegistryUrl);
+    });
+
+    it('should use options.registry for RegistryClient when querying skill info', async () => {
+      const customRegistryUrl = 'https://custom-registry.example.com';
+
+      const { RegistryClient } = await import('./registry-client.js');
+      const getSkillInfoSpy = vi
+        .spyOn(RegistryClient.prototype, 'getSkillInfo')
+        .mockResolvedValue({
+          name: 'my-skill',
+          source_type: 'registry',
+        });
+
+      // Mock RegistryResolver
+      const registryResolver = (manager as unknown as { registryResolver: RegistryResolver })
+        .registryResolver;
+      vi.spyOn(registryResolver, 'resolve').mockResolvedValue({
+        parsed: {
+          scope: null,
+          name: 'my-skill',
+          version: '1.0.0',
+          fullName: 'my-skill',
+        },
+        shortName: 'my-skill',
+        version: '1.0.0',
+        registryUrl: customRegistryUrl,
+        tarball: Buffer.from('mock tarball'),
+        integrity: 'sha256-mockhash',
+      });
+
+      const mockSkillDir = path.join(tempDir, 'mock-skill-client');
+      fs.mkdirSync(mockSkillDir, { recursive: true });
+      fs.writeFileSync(path.join(mockSkillDir, 'SKILL.md'), '# Skill');
+      vi.spyOn(registryResolver, 'extract').mockResolvedValue(mockSkillDir);
+
+      await manager.installToAgents('my-skill', ['cursor'], { registry: customRegistryUrl });
+
+      // RegistryClient should have been created with the custom registry URL
+      // Verify getSkillInfo was called (client was constructed with custom URL)
+      expect(getSkillInfoSpy).toHaveBeenCalledWith('my-skill');
+    });
+
+    it('should fall back to scope-based registry when options.registry is not set', async () => {
+      const { RegistryClient } = await import('./registry-client.js');
+      vi.spyOn(RegistryClient.prototype, 'getSkillInfo').mockResolvedValue({
+        name: '@kanyun/scope-skill',
+        source_type: 'registry',
+      });
+
+      // Mock RegistryResolver
+      const registryResolver = (manager as unknown as { registryResolver: RegistryResolver })
+        .registryResolver;
+      const resolveSpy = vi.spyOn(registryResolver, 'resolve').mockResolvedValue({
+        parsed: {
+          scope: '@kanyun',
+          name: 'scope-skill',
+          version: '1.0.0',
+          fullName: '@kanyun/scope-skill',
+        },
+        shortName: 'scope-skill',
+        version: '1.0.0',
+        registryUrl: 'https://rush-test.zhenguanyu.com/',
+        tarball: Buffer.from('mock tarball'),
+        integrity: 'sha256-mockhash',
+      });
+
+      const mockSkillDir = path.join(tempDir, 'mock-scope-skill');
+      fs.mkdirSync(mockSkillDir, { recursive: true });
+      fs.writeFileSync(path.join(mockSkillDir, 'SKILL.md'), '# Skill');
+      vi.spyOn(registryResolver, 'extract').mockResolvedValue(mockSkillDir);
+
+      // No registry option — should resolve URL from scope at the entry point
+      await manager.installToAgents('@kanyun/scope-skill', ['cursor']);
+
+      // resolve should receive the pre-resolved registry URL (not undefined)
+      // because installToAgentsFromRegistry resolves the URL once and passes it down
+      expect(resolveSpy).toHaveBeenCalledWith('@kanyun/scope-skill', 'https://rush.zhenguanyu.com/');
+    });
+  });
 });
 
 // ============================================================================

@@ -25,7 +25,7 @@ import {
 } from '../../core/skill-validator.js';
 import { logger } from '../../utils/logger.js';
 import { resolveRegistry } from '../../utils/registry.js';
-import { buildFullSkillName, getApiPrefix, getScopeForRegistry } from '../../utils/registry-scope.js';
+import { buildFullSkillName, getScopeForRegistry } from '../../utils/registry-scope.js';
 
 // ============================================================================
 // Types
@@ -612,7 +612,7 @@ async function publishAction(skillPath: string, options: PublishOptions): Promis
     logger.newline();
     logger.log(`Publishing to ${registry}...`);
 
-    const client = new RegistryClient({ registry, token, apiPrefix: getApiPrefix(registry) });
+    const client = new RegistryClient({ registry, token });
 
     try {
       // Get skill name from SKILL.md (primary source per agentskills.io spec)

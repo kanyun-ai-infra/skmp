@@ -113,14 +113,14 @@ describe('publish command', () => {
 
   describe('buildPublishSkillName', () => {
     describe('with known registry scope', () => {
-      it('should build skill name with registry scope for kanyun registry', () => {
+      it('should build skill name with registry scope for kanyun-test registry', () => {
         const result = buildPublishSkillName(
           'planning-with-files',
           'https://rush-test.zhenguanyu.com/',
           'wangzirenbj',
         );
-        // Should use @kanyun (registry scope), not @wangzirenbj (user handle)
-        expect(result).toBe('@kanyun/planning-with-files');
+        // Should use @kanyun-test (registry scope), not @wangzirenbj (user handle)
+        expect(result).toBe('@kanyun-test/planning-with-files');
       });
 
       it('should handle registry without trailing slash', () => {
@@ -129,7 +129,7 @@ describe('publish command', () => {
           'https://rush-test.zhenguanyu.com',
           'someuser',
         );
-        expect(result).toBe('@kanyun/my-skill');
+        expect(result).toBe('@kanyun-test/my-skill');
       });
 
       it('should work with rush.zhenguanyu.com (production)', () => {
@@ -169,8 +169,8 @@ describe('publish command', () => {
   // ============================================================================
 
   describe('getScopeForRegistry', () => {
-    it('should return @kanyun for rush-test.zhenguanyu.com', () => {
-      expect(getScopeForRegistry('https://rush-test.zhenguanyu.com/')).toBe('@kanyun');
+    it('should return @kanyun-test for rush-test.zhenguanyu.com', () => {
+      expect(getScopeForRegistry('https://rush-test.zhenguanyu.com/')).toBe('@kanyun-test');
     });
 
     it('should return @kanyun for rush.zhenguanyu.com', () => {

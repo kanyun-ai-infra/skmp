@@ -23,6 +23,8 @@ interface InstallOptions {
   skill?: string[];
   /** List available skills in the repo without installing */
   list?: boolean;
+  /** Registry URL override for registry-based installs */
+  registry?: string;
 }
 
 interface InstallContext {
@@ -385,6 +387,7 @@ async function installAllSkills(
         force: options.force,
         save: false, // Already in skills.json
         mode: installMode,
+        registry: options.registry,
       });
 
       const successCount = Array.from(results.values()).filter((r) => r.success).length;
@@ -451,6 +454,7 @@ async function installSingleSkill(
     force: options.force,
     save: options.save !== false && !installGlobally,
     mode: installMode,
+    registry: options.registry,
   });
 
   spinner.stop('Installation complete');
@@ -524,11 +528,13 @@ async function installMultiSkillFromRepo(
     force: ctx.options.force,
     save: ctx.options.save !== false && !installGlobally,
     mode: installMode,
+    registry: ctx.options.registry,
   });
 
   spinner.stop('Installation complete');
 
-  if (result.listOnly) return; // Type narrowing for discriminated union
+  // listOnly is always false here (the listOnly path returns early above)
+  if (result.listOnly) return;
   const { installed, skipped } = result;
 
   if (installed.length === 0 && skipped.length > 0) {
@@ -537,6 +543,7 @@ async function installMultiSkillFromRepo(
     p.log.info('Use --force to reinstall.');
     return;
   }
+
 
   const resultLines = installed.map(
     (r) => `  ${chalk.green('✓')} ${r.skill.name}@${r.skill.version}`,
@@ -601,6 +608,7 @@ async function installMultipleSkills(
         {
           force: options.force,
           save: options.save !== false && !installGlobally,
+          registry: options.registry,
           mode: installMode,
         },
       );
@@ -633,7 +641,7 @@ async function installMultipleSkills(
   }
 
   // Display batch results
-  console.log();
+  p.log.message('');
   displayBatchInstallResults(successfulSkills, failedSkills, targetAgents.length);
 
   // Save installation defaults (only for project installs with success)
@@ -831,6 +839,7 @@ export const installCommand = new Command('install')
     'Select specific skill(s) by name from a multi-skill repository',
   )
   .option('--list', 'List available skills in the repository without installing')
+  .option('-r, --registry <url>', 'Registry URL override for registry-based installs')
   .action(async (skills: string[], options: InstallOptions) => {
     // Handle --all flag implications
     if (options.all) {
