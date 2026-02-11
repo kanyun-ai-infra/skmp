@@ -11,7 +11,6 @@
  */
 
 import { RegistryClient } from '../src/core/registry-client.js';
-import { getApiPrefix } from '../src/utils/registry-scope.js';
 
 async function main() {
   const registry = process.env.REGISTRY || 'http://localhost:3000';
@@ -24,7 +23,7 @@ async function main() {
   console.log(`Version: ${version}`);
   console.log('');
 
-  const client = new RegistryClient({ registry, apiPrefix: getApiPrefix(registry) });
+  const client = new RegistryClient({ registry });
 
   try {
     // 1. 解析版本

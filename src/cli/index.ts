@@ -9,6 +9,7 @@ import { checkForUpdate, formatUpdateMessage } from '../utils/update-notifier.js
 import {
   completionCommand,
   doctorCommand,
+  findCommand,
   infoCommand,
   initCommand,
   installCommand,
@@ -41,6 +42,7 @@ program
 
 // Register all commands
 program.addCommand(initCommand);
+program.addCommand(findCommand);
 program.addCommand(installCommand);
 program.addCommand(listCommand);
 program.addCommand(infoCommand);

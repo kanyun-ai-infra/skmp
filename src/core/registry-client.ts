@@ -72,6 +72,43 @@ export interface SkillMetadataResponse {
   error?: string;
 }
 
+export interface SearchResultItem {
+  /** Full skill name (e.g., "@kanyun/planning-with-files") */
+  name: string;
+  /** Description */
+  description?: string;
+  /** Latest version */
+  latest_version?: string;
+  /** Keywords (parsed from metadata_json) */
+  keywords?: string[];
+  /** Publisher info */
+  publisher?: { handle: string };
+  /** Last updated time */
+  updated_at?: string;
+}
+
+export interface SearchPagination {
+  currentPage: number;
+  totalPages: number;
+  totalItems: number;
+  itemsPerPage: number;
+  hasNext: boolean;
+  hasPrevious: boolean;
+}
+
+export interface SearchResponse {
+  /** Whether request succeeded */
+  success: boolean;
+  /** Error message (if failed) */
+  error?: string;
+  /** Search results */
+  data?: SearchResultItem[];
+  /** Pagination metadata */
+  meta?: {
+    pagination?: SearchPagination;
+  };
+}
+
 export interface DownloadResult {
   tarball: Buffer;
   integrity: string;
@@ -274,6 +311,59 @@ export class RegistryClient {
     };
 
     return responseData.data || (responseData as unknown as SkillInfo);
+  }
+
+  // ============================================================================
+  // Search Methods
+  // ============================================================================
+
+  /**
+   * Search for skills in the registry
+   *
+   * @param query - Search query string
+   * @param options - Search options (limit, offset)
+   * @returns Array of matching skills
+   * @throws RegistryError if the request fails
+   *
+   * @example
+   * const results = await client.search('typescript');
+   * const results = await client.search('planning', { limit: 5 });
+   */
+  async search(
+    query: string,
+    options: { limit?: number; offset?: number } = {},
+  ): Promise<{ items: SearchResultItem[]; total: number }> {
+    const params = new URLSearchParams({ q: query });
+
+    if (options.limit !== undefined) {
+      params.set('limit', String(options.limit));
+    }
+    if (options.offset !== undefined) {
+      params.set('offset', String(options.offset));
+    }
+
+    const url = `${this.getApiBase()}/skills?${params.toString()}`;
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: this.getAuthHeaders(),
+    });
+
+    if (!response.ok) {
+      const data = (await response.json()) as { error?: string };
+      throw new RegistryError(
+        data.error || `Search failed: ${response.status}`,
+        response.status,
+        data,
+      );
+    }
+
+    const data = (await response.json()) as SearchResponse;
+
+    return {
+      items: data.data || [],
+      total: data.meta?.pagination?.totalItems ?? data.data?.length ?? 0,
+    };
   }
 
   // ============================================================================

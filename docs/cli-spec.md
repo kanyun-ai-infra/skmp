@@ -8,6 +8,7 @@
 | Command | Alias | Description |
 |---------|-------|-------------|
 | [init](#init) | - | Initialize skills.json configuration |
+| [find](#find) | `search` | Search for skills in the registry |
 | [install](#install) | `i` | Install skills |
 | [uninstall](#uninstall) | `un`, `remove`, `rm` | Remove installed skills |
 | [list](#list) | `ls` | List installed skills |
@@ -65,6 +66,50 @@ Next steps:
 ```
 ⚠ skills.json already exists
 ```
+
+---
+
+## find
+
+Search for skills in the registry (public or private via `--registry`).
+
+### Synopsis
+
+```
+reskill find <query> [options]
+reskill search <query> [options]
+```
+
+### Arguments
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `query` | Yes | Search query string |
+
+### Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `-r, --registry <url>` | (see below) | Registry URL; overrides env and config |
+| `-l, --limit <n>` | `10` | Maximum number of results |
+| `-j, --json` | `false` | Output as JSON |
+
+### Registry resolution
+
+Same priority as publish: `--registry` option → `RESKILL_REGISTRY` env → `defaults.publishRegistry` in skills.json. If none is set, falls back to the public registry (no error).
+
+### Behavior
+
+| Scenario | Expected Behavior | Exit Code |
+|----------|-------------------|-----------|
+| Query returns results | Print matching skills (name, description, version, publisher); suggest `reskill install <name>` | `0` |
+| Query returns no results | Print "No skills found" message | `0` |
+| Registry requires auth and request fails | Error message; hint to run `reskill login` | `1` |
+| Invalid `--limit` (non-positive) | Error message | `1` |
+
+### Output
+
+**Human-readable (default):** list of skills with index, name, version, description, keywords, publisher. **JSON (`--json`):** `{ "total": number, "items": SearchResultItem[] }`.
 
 ---
 
