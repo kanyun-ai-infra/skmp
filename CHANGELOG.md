@@ -1,5 +1,217 @@
 # reskill
 
+## 1.8.0
+
+### Minor Changes
+
+- 944023c: Add `find` / `search` command to search for skills in the registry
+
+  **New Features:**
+
+  - `reskill find <query>` (alias: `reskill search`) — Search skills in public or private registries
+  - `--registry <url>` — Specify a registry URL (or use `RESKILL_REGISTRY` env, or `defaults.publishRegistry` in skills.json)
+  - `--limit <n>` — Limit the number of results (default: 10)
+  - `--json` — Output search results as JSON
+
+  **Core Changes:**
+
+  - `registry-client.ts`: Add `search()` method with query, limit/offset support, and pagination metadata handling
+  - `registry.ts`: Add `resolveRegistryForSearch()` with fallback to public registry (unlike `resolveRegistry()` which exits on missing config)
+  - `find.ts`: New CLI command with human-readable and JSON output modes, auth error hints
+
+  **Tests:**
+
+  - Unit tests: command definition, search execution, JSON output, error handling, registry resolution
+  - Integration tests: real CLI execution with `--registry`, `--limit`, `--json`, error cases
+
+  ***
+
+  新增 `find` / `search` 命令，用于在 registry 中搜索 skill
+
+  **新功能：**
+
+  - `reskill find <query>`（别名：`reskill search`）— 在公共或私有 registry 中搜索 skill
+  - `--registry <url>` — 指定 registry URL（或使用 `RESKILL_REGISTRY` 环境变量，或 skills.json 中的 `defaults.publishRegistry`）
+  - `--limit <n>` — 限制结果数量（默认：10）
+  - `--json` — 以 JSON 格式输出搜索结果
+
+  **核心变更：**
+
+  - `registry-client.ts`：新增 `search()` 方法，支持 query、limit/offset 和分页元数据处理
+  - `registry.ts`：新增 `resolveRegistryForSearch()`，未配置时回退到公共 registry（不同于 `resolveRegistry()` 会直接退出）
+  - `find.ts`：新增 CLI 命令，支持人类可读和 JSON 两种输出模式，认证错误提示
+
+  **测试：**
+
+  - 单元测试：命令定义、搜索执行、JSON 输出、错误处理、registry 解析
+  - 集成测试：使用 `--registry`、`--limit`、`--json` 和错误场景的真实 CLI 执行测试
+
+- b4591e8: Auto-generate Cursor .mdc bridge rule files on skill install
+
+  **Changes:**
+
+  - When installing a skill to the Cursor agent (project-level), automatically create a `.cursor/rules/<skill-name>.mdc` bridge file
+  - Bridge file references `SKILL.md` via `@file` directive so Cursor can discover and activate the skill
+  - On uninstall, auto-generated bridge files are cleaned up (manually created `.mdc` files are preserved)
+  - Skipped for global installs and non-cursor agents
+
+  ***
+
+  安装 skill 到 Cursor 时自动生成 .mdc 桥接规则文件
+
+  **变更：**
+
+  - 安装 skill 到 Cursor agent（项目级）时，自动在 `.cursor/rules/<skill-name>.mdc` 创建桥接文件
+  - 桥接文件通过 `@file` 指令引用 `SKILL.md`，使 Cursor 能够发现和激活 skill
+  - 卸载时自动清理桥接文件（手动创建的 `.mdc` 文件不受影响）
+  - 全局安装和非 Cursor agent 不创建桥接文件
+
+- 7d234e2: Support installing selected skills from multi-skill repositories with `--skill` and `--list`
+
+  **New Features:**
+
+  - `reskill install <repo> --skill <name>` — Install one specific skill by name from a multi-skill repository
+  - `reskill install <repo> --skill <name1> <name2>` — Install multiple named skills from a single repo
+  - `reskill install <repo> --list` — Discover and list all available skills in a repository without installing
+  - Skills from multi-skill repos are saved to `skills.json` using `ref#skillName` format (e.g. `github:org/repo@v1.0.0#pdf`)
+
+  **Core Changes:**
+
+  - `skill-parser.ts`: Add `discoverSkillsInDir()` for scanning SKILL.md files with priority directories (`skills/`, `.agents/skills/`, etc.) and recursive fallback (max depth 5, skip `node_modules`/`.git`/`dist`)
+  - `skill-parser.ts`: Add `filterSkillsByName()` for case-insensitive skill name matching
+  - `skill-manager.ts`: Add `installSkillsFromRepo()` method with Git-only flow, discriminated union return type (`listOnly: true` for discovery, `listOnly: false` for installation), skip-if-installed logic, and skipped skill tracking
+  - `install.ts`: Add `installMultiSkillFromRepo()` CLI handler with installation summary, confirmation prompt, and result display
+
+  **Bug Fixes & Improvements:**
+
+  - Use discriminated union properly in `--list` path (type-safe access to `result.skills`)
+  - Forward `--force` option with skip-if-installed check; only skip when exact same ref is locked
+  - Show meaningful message when all skills are already installed (with skip reasons)
+  - Warn when `--skill`/`--list` used with multiple refs (flags are ignored in that case)
+  - Replace `console.log()` with `p.log.message('')` for consistent `@clack/prompts` formatting
+  - Optimize recursive discovery: track visited directories to avoid redundant I/O and symlink cycles
+  - Add `try/catch` around `fs.statSync` in priority directory scan for race condition safety
+
+  **Spec & Tests:**
+
+  - Update `docs/cli-spec.md` with `--skill` and `--list` option behavior, multi-skill repo section, and scenario tables
+  - Add integration tests: `--list`, `--skill` single/multiple, error when skill not found, `--force`, `--no-save`, `-a cursor -y`, `--help`
+  - Add unit tests: `discoverSkillsInDir` (root, priority dirs, recursive, dedup, skip node_modules), `filterSkillsByName`, `installSkillsFromRepo` (list, filter, save, error, no SKILL.md)
+
+  ***
+
+  支持从多技能仓库中选择性安装技能（`--skill` 和 `--list`）
+
+  **新功能：**
+
+  - `reskill install <repo> --skill <name>` — 从多技能仓库中按名称安装指定技能
+  - `reskill install <repo> --skill <name1> <name2>` — 从单个仓库安装多个指定技能
+  - `reskill install <repo> --list` — 发现并列出仓库中所有可用技能，不执行安装
+  - 多技能仓库中的技能以 `ref#skillName` 格式保存到 `skills.json`（如 `github:org/repo@v1.0.0#pdf`）
+
+  **核心变更：**
+
+  - `skill-parser.ts`：新增 `discoverSkillsInDir()` 用于扫描 SKILL.md 文件，支持优先目录（`skills/`、`.agents/skills/` 等）和递归回退（最大深度 5，跳过 `node_modules`/`.git`/`dist`）
+  - `skill-parser.ts`：新增 `filterSkillsByName()` 用于大小写不敏感的技能名称匹配
+  - `skill-manager.ts`：新增 `installSkillsFromRepo()` 方法，使用 Git-only 流程、判别联合返回类型、跳过已安装逻辑和跳过技能跟踪
+  - `install.ts`：新增 `installMultiSkillFromRepo()` CLI 处理函数，含安装摘要、确认提示和结果展示
+
+  **Bug 修复与改进：**
+
+  - 在 `--list` 路径中正确使用判别联合（类型安全地访问 `result.skills`）
+  - 传递 `--force` 选项并添加跳过已安装检查；仅在完全相同 ref 已锁定时跳过
+  - 所有技能已安装时显示有意义的提示信息（包含跳过原因）
+  - 当 `--skill`/`--list` 与多个 ref 同时使用时发出警告
+  - 将 `console.log()` 替换为 `p.log.message('')`，统一格式化
+  - 优化递归发现：跟踪已访问目录避免冗余 I/O 和 symlink 循环
+  - 在优先目录扫描的 `fs.statSync` 中添加 `try/catch` 防止竞态条件
+
+  **规范与测试：**
+
+  - 更新 `docs/cli-spec.md`，添加 `--skill` 和 `--list` 选项行为、多技能仓库章节和场景表格
+  - 添加集成测试：`--list`、`--skill` 单个/多个、技能未找到错误、`--force`、`--no-save`、`-a cursor -y`、`--help`
+  - 添加单元测试：`discoverSkillsInDir`（根目录、优先目录、递归、去重、跳过 node_modules）、`filterSkillsByName`、`installSkillsFromRepo`（列表、过滤、保存、错误、无 SKILL.md）
+
+### Patch Changes
+
+- a5cf7d7: Fix reinstall/update failure for multi-skill repo references with #skillName fragment
+
+  **Bug:**
+  When `skills.json` stores references in `github:user/repo#skillName` format (saved during multi-skill repo installation), running `install` (no args, reinstall all) or `update` would append `#skillName` to the git clone URL, causing a clone failure like: `Failed to clone repository: https://github.com/anthropics/skills#pdf`.
+
+  **Changes:**
+
+  - Strip `#fragment` in `parseRef()` before URL construction, storing it as `skillName` on `ParsedSkillRef`
+  - Add `resolveSourcePath()` helper to locate the correct skill subdirectory in cached multi-skill repos
+  - Use `resolveSourcePath()` in both `installFromGit()` and `installToAgentsFromGit()` so reinstall and update correctly find the skill within the cloned repo
+
+  **Bug Fixes:**
+
+  - `install` (reinstall all from skills.json) now works with `ref#skillName` entries
+  - `update <skill>` now works with `ref#skillName` entries
+  - `outdated` check no longer fails on `ref#skillName` entries
+
+  ***
+
+  修复多技能仓库 #skillName 格式引用的 reinstall/update 失败问题
+
+  **Bug:**
+  当 `skills.json` 中存储了 `github:user/repo#skillName` 格式的引用（多技能仓库安装时保存），执行 `install`（无参数重装全部）或 `update` 时，会将 `#skillName` 拼接到 git clone URL 中，导致克隆失败，例如：`Failed to clone repository: https://github.com/anthropics/skills#pdf`。
+
+  **Changes:**
+
+  - 在 `parseRef()` 中构建 URL 前剥离 `#fragment`，存入 `ParsedSkillRef.skillName` 字段
+  - 新增 `resolveSourcePath()` 辅助方法，在缓存的多技能仓库中定位正确的 skill 子目录
+  - 在 `installFromGit()` 和 `installToAgentsFromGit()` 中使用 `resolveSourcePath()`，使 reinstall 和 update 能正确找到仓库中的 skill
+
+  **Bug Fixes:**
+
+  - `install`（从 skills.json 重装全部）现在可以正确处理 `ref#skillName` 条目
+  - `update <skill>` 现在可以正确处理 `ref#skillName` 条目
+  - `outdated` 检查不再因 `ref#skillName` 条目而失败
+
+- 5d15614: Fix shorthand skill references not recognizing `tree/branch/path` format
+
+  **Bug Fixes:**
+
+  - `GitResolver.parseRef()` now correctly handles GitHub web URL style paths in shorthand format (e.g., `github:vercel-labs/skills/tree/main/skills/find-skills`)
+  - Previously, only full HTTPS URLs (`https://github.com/...`) could recognize the `tree/branch/path` pattern; shorthand format would incorrectly treat the entire `tree/main/...` as a subPath, causing "Subpath not found" errors during installation
+  - The fix detects `tree`, `blob`, and `raw` keywords in the shorthand path and correctly extracts the branch name and subPath
+
+  **Tests:**
+
+  - Added 7 unit tests covering: shorthand with `tree/branch/path`, without subpath, `blob/branch/path`, no registry prefix, `tree` as regular subpath (no false positive), and version override precedence
+
+  ***
+
+  修复 shorthand 格式的 skill 引用无法识别 `tree/branch/path` 的问题
+
+  **Bug 修复：**
+
+  - `GitResolver.parseRef()` 现在能正确处理 shorthand 格式中的 GitHub 网页 URL 风格路径（如 `github:vercel-labs/skills/tree/main/skills/find-skills`）
+  - 此前只有完整 HTTPS URL（`https://github.com/...`）才能识别 `tree/branch/path` 模式；shorthand 格式会将整个 `tree/main/...` 错误地当作 subPath，导致安装时报 "Subpath not found" 错误
+  - 修复方案：在 shorthand 路径中检测 `tree`、`blob`、`raw` 关键词，正确提取 branch 和 subPath
+
+  **测试：**
+
+  - 新增 7 个单元测试，覆盖：shorthand + `tree/branch/path`、无 subpath、`blob/branch/path`、无 registry 前缀、`tree` 作为普通 subpath（无误判）、版本覆盖优先级
+
+- 8204f4a: Update README documentation
+
+  **Changes:**
+
+  - Fixed example install command path in quick start section
+  - Reformatted markdown tables for better readability and alignment
+
+  ***
+
+  更新 README 文档
+
+  **变更：**
+
+  - 修复快速开始部分的示例安装命令路径
+  - 重新格式化 Markdown 表格，提升可读性和对齐效果
+
 ## 1.7.0
 
 ### Minor Changes
