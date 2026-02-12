@@ -1,44 +1,54 @@
-<div align="center">
-
-<img src="https://raw.githubusercontent.com/kanyun-ai-infra/reskill/main/logov2.png" alt="reskill" height="48" />
-
-**Git-based Skills Package Manager for AI Agents**
-
-*Declarative skill management like npm/Go modules — install, version, sync, and share AI agent skills*
-
-[![npm version](https://img.shields.io/npm/v/reskill.svg)](https://www.npmjs.com/package/reskill)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-
-English | [简体中文](./README.zh-CN.md)
-
-</div>
+<!-- source: README.md -->
+<!-- synced: 2026-02-12 -->
 
 ---
+name: reskill-usage
+description: Teaches AI agents how to use reskill — a Git-based package manager for AI agent skills. Covers CLI commands, install formats, configuration, publishing, and common workflows.
+version: 0.1.0
+author: reskill
+tags:
+  - cli
+  - package-manager
+  - skills
+  - reskill
+---
+
+# reskill Usage Guide
+
+reskill is a Git-based package manager for AI agent skills. It provides declarative configuration (`skills.json` + `skills.lock`), flexible versioning, and multi-agent support for installing, managing, and sharing skills across projects and teams.
+
+**Requirements:** Node.js >= 18.0.0
+
+**CLI usage:** If `reskill` is installed globally, use it directly. Otherwise use `npx reskill@latest`:
+
+```bash
+npm install -g reskill        # Global install
+npx reskill@latest <command>  # Or use npx directly (no install needed)
+```
+
+## When to Use This Skill
+
+Use this skill when the user:
+
+- Wants to install, update, or manage AI agent skills
+- Mentions `skills.json`, `skills.lock`, or reskill-related concepts
+- Wants to publish a skill to a registry
+- Asks about supported install formats (GitHub, GitLab, HTTP, OSS, registry, etc.)
+- Encounters reskill-related errors or needs troubleshooting
+- Wants to set up a project for skill management
+- Asks about multi-agent skill installation (Cursor, Claude Code, Codex, etc.)
 
 ## Quick Start
 
 ```bash
+# Initialize a new project
 npx reskill@latest init
+
+# Install a skill
 npx reskill@latest install github:anthropics/skills/skills/frontend-design@latest
+
+# List installed skills
 npx reskill@latest list
-```
-
-## Features
-
-- **One-click install** — Install any skill from any Git repo with a single command
-- **Declarative config** — `skills.json` + `skills.lock` for team consistency
-- **Flexible versioning** — Exact versions, semver ranges, branches, commits
-- **Multi-source** — GitHub, GitLab, self-hosted repos, HTTP/OSS archives
-- **Multi-agent** — Cursor, Claude Code, Codex, Windsurf, GitHub Copilot, and more
-- **Registry support** — Publish and share skills via registry
-
-## Installation
-
-**Requirements:** Node.js >= 18.0.0
-
-```bash
-npm install -g reskill        # Global install
-npx reskill@latest <command>  # Or use npx directly
 ```
 
 ## Commands
@@ -62,6 +72,8 @@ npx reskill@latest <command>  # Or use npx directly
 
 > ¹ Registry commands (`publish`, `login`, `logout`, `whoami`) require a private registry deployment. Not available for public use yet.
 
+Run `reskill <command> --help` for complete options and detailed usage.
+
 ### Common Options
 
 | Option                    | Commands                             | Description                                                   |
@@ -78,9 +90,9 @@ npx reskill@latest <command>  # Or use npx directly
 | `-r, --registry <url>`    | `install`                            | Registry URL override for registry-based installs             |
 | `-j, --json`              | `list`, `info`, `outdated`, `doctor` | Output as JSON                                                |
 
-Run `reskill <command> --help` for complete options and detailed usage.
-
 ## Source Formats
+
+reskill supports installing skills from multiple sources:
 
 ```bash
 # GitHub shorthand
@@ -116,7 +128,7 @@ npx reskill@latest install github:user/skill1 github:user/skill2@v1.0.0
 
 ### Monorepo Support
 
-For repositories containing multiple skills (monorepo), specify the path to the skill directory:
+For repositories containing multiple skills, specify the path to the skill directory:
 
 ```bash
 # Shorthand format with subpath
@@ -147,7 +159,7 @@ Skills can be installed directly from HTTP/HTTPS URLs pointing to archive files:
 
 **Supported archive formats:** `.tar.gz`, `.tgz`, `.zip`, `.tar`
 
-## Version Specification
+### Version Formats
 
 | Format | Example           | Description                        |
 | ------ | ----------------- | ---------------------------------- |
@@ -161,6 +173,8 @@ Skills can be installed directly from HTTP/HTTPS URLs pointing to archive files:
 ## Configuration
 
 ### skills.json
+
+The project configuration file, created by `reskill init`:
 
 ```json
 {
@@ -179,14 +193,21 @@ Skills can be installed directly from HTTP/HTTPS URLs pointing to archive files:
 }
 ```
 
-### Private Repositories
+- `skills` — Installed skill references (name → source ref)
+- `registries` — Custom Git registry aliases
+- `defaults.installDir` — Where skills are stored (default: `.skills`)
+- `defaults.targetAgents` — Default agents to install to
+- `defaults.installMode` — `symlink` (default, recommended) or `copy`
 
-reskill uses your existing git credentials (SSH keys or credential helper). For CI/CD:
+### Environment Variables
 
-```bash
-# GitLab CI
-git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.company.com/".insteadOf "https://gitlab.company.com/"
-```
+| Variable            | Description                                     | Default                        |
+| ------------------- | ----------------------------------------------- | ------------------------------ |
+| `RESKILL_CACHE_DIR` | Global cache directory                          | `~/.reskill-cache`             |
+| `RESKILL_TOKEN`     | Auth token (takes precedence over ~/.reskillrc) | -                              |
+| `RESKILL_REGISTRY`  | Default registry URL                            | `https://registry.reskill.dev` |
+| `DEBUG`             | Enable debug logging                            | -                              |
+| `NO_COLOR`          | Disable colored output                          | -                              |
 
 ## Multi-Agent Support
 
@@ -201,69 +222,148 @@ Skills are installed to `.skills/` by default and can be integrated with any age
 | GitHub Copilot | `.github/skills/`                     |
 | OpenCode       | `.opencode/skills/`                   |
 
-## Publishing Skills
-
-> **Note:** Publishing requires a private registry deployment. This feature is not available for public use yet.
-
-Publish your skills to the registry for others to use:
+Use `--agent` to target specific agents, or `--all` to install to all detected agents:
 
 ```bash
-# Login to the registry
-reskill login
+# Install to specific agents
+reskill install github:user/skill -a cursor claude-code
 
-# Validate without publishing (dry run)
+# Install to all detected agents
+reskill install github:user/skill --all
+```
+
+## Publishing
+
+> **Note:** Publishing requires a private registry deployment.
+
+### Authentication
+
+```bash
+# Login with a token (obtain from the registry web UI)
+reskill login --registry <url> --token <token>
+
+# Check current login status
+reskill whoami
+
+# Logout
+reskill logout
+```
+
+Tokens are stored in `~/.reskillrc`. You can also use the `RESKILL_TOKEN` environment variable (takes precedence, useful for CI/CD).
+
+Registry URL resolution priority:
+1. `--registry` CLI option
+2. `RESKILL_REGISTRY` environment variable
+3. `defaults.publishRegistry` in `skills.json`
+
+### Publishing a Skill
+
+```bash
+# Validate without publishing (recommended first step)
 reskill publish --dry-run
 
 # Publish the skill
 reskill publish
+
+# Publish from a specific directory
+reskill publish ./path/to/skill
+
+# Skip confirmation
+reskill publish -y
 ```
 
-For detailed publishing guidelines, see the [CLI Specification](./docs/cli-spec.md#publish).
+The skill directory must contain a valid `SKILL.md`. A `skill.json` with `name`, `version`, and `description` is also required for publishing.
 
-## Environment Variables
+## Common Workflows
 
-| Variable            | Description                                     | Default                        |
-| ------------------- | ----------------------------------------------- | ------------------------------ |
-| `RESKILL_CACHE_DIR` | Global cache directory                          | `~/.reskill-cache`             |
-| `RESKILL_TOKEN`     | Auth token (takes precedence over ~/.reskillrc) | -                              |
-| `RESKILL_REGISTRY`  | Default registry URL                            | `https://registry.reskill.dev` |
-| `DEBUG`             | Enable debug logging                            | -                              |
-| `NO_COLOR`          | Disable colored output                          | -                              |
-
-## Development
+### First-Time Project Setup
 
 ```bash
-# Install dependencies
-pnpm install
+# 1. Initialize the project
+reskill init -y
 
-# Development mode
-pnpm dev
+# 2. Install skills your project needs
+reskill install github:user/skill1@v1.0.0 github:user/skill2@latest -y
 
-# Build
-pnpm build
+# 3. Verify installation
+reskill list
 
-# Run tests
-pnpm test
-
-# Run integration tests
-pnpm test:integration
-
-# Type check
-pnpm typecheck
+# 4. Commit skills.json and skills.lock to version control
+# (These files ensure team members get the same skill versions)
 ```
 
-## Acknowledgements
+### Team Collaboration
 
-reskill was inspired by and references the implementations of these excellent projects:
+When a teammate clones the project, they run:
 
-- [add-skill](https://github.com/vercel-labs/add-skill) by Vercel Labs
-- [skild](https://github.com/Peiiii/skild) by Peiiii
-- [openskills](https://github.com/numman-ali/openskills) by Numman Ali
+```bash
+# Reinstall all skills from skills.json (like npm install)
+reskill install
+```
 
-## Related Links
+This reads `skills.json` + `skills.lock` and installs the exact same versions.
 
-- [Agent Skills Specification](https://agentskills.io)
+### Checking and Updating Skills
 
-## License
+```bash
+# Check which skills have newer versions
+reskill outdated
 
-MIT
+# Update all skills
+reskill update
+
+# Update a specific skill
+reskill update skill-name
+```
+
+### Global vs Project-Level Installation
+
+| Scope   | Flag | Directory               | Use Case                                   |
+| ------- | ---- | ----------------------- | ------------------------------------------ |
+| Project | -    | `.skills/` (in project) | Team-shared skills, committed to git       |
+| Global  | `-g` | `~/.agents/skills/`     | Personal skills, available in all projects |
+
+```bash
+# Project-level (default)
+reskill install github:user/skill
+
+# Global (personal, all projects)
+reskill install github:user/skill -g
+
+# Personal project-level (not saved to skills.json)
+reskill install github:user/skill --no-save
+```
+
+### Diagnosing Issues
+
+```bash
+# Run environment diagnostics
+reskill doctor
+
+# JSON output for programmatic use
+reskill doctor --json
+```
+
+The `doctor` command checks: reskill version, Node.js version, Git availability, cache directory, `skills.json` validity, `skills.lock` sync, installed skills integrity, and network connectivity.
+
+## Troubleshooting
+
+| Error Message                        | Cause                                 | Solution                                                 |
+| ------------------------------------ | ------------------------------------- | -------------------------------------------------------- |
+| `skills.json not found`              | Project not initialized               | Run `reskill init`                                       |
+| `Unknown scope @xyz`                 | No registry configured for this scope | Check `registries` in `skills.json` or use full Git URL  |
+| `Skill not found`                    | Skill name doesn't exist in registry  | Verify skill name; check `reskill find <query>`          |
+| `Version not found`                  | Requested version doesn't exist       | Run `reskill info <skill>` to see available versions     |
+| `Permission denied`                  | Auth issue when publishing            | Run `reskill login`; check token scope                   |
+| `Token is invalid or expired`        | Stale authentication                  | Re-authenticate with `reskill login --token <new-token>` |
+| `Network error`                      | Cannot reach Git host or registry     | Check network; run `reskill doctor` for diagnostics      |
+| `Conflict: directory already exists` | Skill already installed               | Use `--force` to reinstall                               |
+
+### Private Repositories
+
+reskill uses your existing git credentials (SSH keys or credential helper). For CI/CD environments:
+
+```bash
+# GitLab CI
+git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.company.com/".insteadOf "https://gitlab.company.com/"
+```

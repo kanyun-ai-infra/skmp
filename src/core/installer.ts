@@ -495,9 +495,14 @@ export class Installer {
       // Quote description to prevent YAML injection from special characters
       const safeDescription = parsed.description.replace(/"/g, '\\"');
       const agent = getAgentConfig('cursor');
+
+      // Read globs from metadata if available
+      const globs = parsed.metadata?.globs;
+      const globsValue = typeof globs === 'string' && globs.length > 0 ? `"${globs}"` : '';
+
       const bridgeContent = `---
 description: "${safeDescription}"
-globs: 
+globs: ${globsValue}
 alwaysApply: false
 ---
 

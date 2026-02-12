@@ -5,7 +5,6 @@
  * For actual git installation tests, see install-e2e.test.ts
  */
 
-import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
@@ -132,4 +131,5 @@ describe('CLI Integration: install --mode copy', () => {
       expect(stdout).toMatch(/symlink|copy/i);
     });
   });
+
 });
