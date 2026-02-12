@@ -43,23 +43,24 @@ npx reskill@latest <command>  # 或直接使用 npx
 
 ## 命令
 
-| 命令                  | 别名                 | 说明                     |
-| --------------------- | -------------------- | ------------------------ |
-| `init`                | -                    | 初始化 `skills.json`     |
-| `install [skills...]` | `i`                  | 安装一个或多个 skills    |
-| `list`                | `ls`                 | 列出已安装的 skills      |
-| `info <skill>`        | -                    | 查看 skill 详情          |
-| `update [skill]`      | `up`                 | 更新 skills              |
-| `outdated`            | -                    | 检查过期的 skills        |
-| `uninstall <skill>`   | `un`, `rm`, `remove` | 卸载 skill               |
-| `publish [path]`      | `pub`                | 发布 skill 到 registry ¹ |
-| `login`               | -                    | 登录 registry ¹          |
-| `logout`              | -                    | 登出 registry ¹          |
-| `whoami`              | -                    | 显示当前登录用户 ¹       |
-| `doctor`              | -                    | 诊断环境并检查问题       |
+| 命令                  | 别名                 | 说明                      |
+| --------------------- | -------------------- | ------------------------- |
+| `init`                | -                    | 初始化 `skills.json`      |
+| `find <query>`        | -                    | 在 registry 中搜索 skills |
+| `install [skills...]` | `i`                  | 安装一个或多个 skills     |
+| `list`                | `ls`                 | 列出已安装的 skills       |
+| `info <skill>`        | -                    | 查看 skill 详情           |
+| `update [skill]`      | `up`                 | 更新 skills               |
+| `outdated`            | -                    | 检查过期的 skills         |
+| `uninstall <skill>`   | `un`, `rm`, `remove` | 卸载 skill                |
+| `publish [path]`      | `pub`                | 发布 skill 到 registry ¹  |
+| `login`               | -                    | 登录 registry ¹           |
+| `logout`              | -                    | 登出 registry ¹           |
+| `whoami`              | -                    | 显示当前登录用户 ¹        |
+| `doctor`              | -                    | 诊断环境并检查问题        |
+| `completion install`  | -                    | 安装 Shell Tab 补全       |
 
 > ¹ Registry 相关命令（`publish`、`login`、`logout`、`whoami`）需要部署私有 registry 后才能使用，暂不对外开放。
-| `completion install` | - | 安装 Shell Tab 补全 |
 
 ### 常用选项
 
@@ -72,6 +73,9 @@ npx reskill@latest <command>  # 或直接使用 npx
 | `--all`                   | `install`                            | 安装到所有 Agent                             |
 | `-y, --yes`               | `install`, `uninstall`, `publish`    | 跳过确认提示                                 |
 | `-f, --force`             | `install`                            | 强制重新安装                                 |
+| `-s, --skill <names...>`  | `install`                            | 从多 skill 仓库中选择指定 skill              |
+| `--list`                  | `install`                            | 列出仓库中可用的 skills（不安装）            |
+| `-r, --registry <url>`    | `install`                            | 覆盖 registry URL（用于 registry 安装）      |
 | `-j, --json`              | `list`, `info`, `outdated`, `doctor` | JSON 格式输出                                |
 
 运行 `reskill <command> --help` 查看完整选项和详细用法。
@@ -101,6 +105,10 @@ npx reskill@latest install gitlab.company.com:team/skill@v1.0.0
 npx reskill@latest install https://example.com/skills/my-skill-v1.0.0.tar.gz
 npx reskill@latest install oss://bucket/path/skill.tar.gz
 npx reskill@latest install s3://bucket/path/skill.zip
+
+# Registry 安装（需要部署 registry）
+npx reskill@latest install @scope/skill-name@1.0.0
+npx reskill@latest install skill-name
 
 # 一次安装多个 skills
 npx reskill@latest install github:user/skill1 github:user/skill2@v1.0.0
@@ -191,6 +199,7 @@ Skills 默认安装到 `.skills/`，可与任何 Agent 集成：
 | Codex          | `.codex/skills/`                      |
 | Windsurf       | `.windsurf/skills/`                   |
 | GitHub Copilot | `.github/skills/`                     |
+| OpenCode       | `.opencode/skills/`                   |
 
 ## 发布 Skills
 
