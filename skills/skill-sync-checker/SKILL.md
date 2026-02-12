@@ -8,6 +8,8 @@ tags:
   - sync
   - skills
   - documentation
+metadata:
+  globs: "README.md"
 ---
 
 # Skill Sync Checker
@@ -16,6 +18,8 @@ A utility skill that detects when skill content has drifted from its source docu
 
 ## When to Use This Skill
 
+### User-Initiated (Agent Requested)
+
 Use this skill when the user:
 
 - Asks to check if a skill's content is up to date
@@ -23,6 +27,24 @@ Use this skill when the user:
 - Is preparing a skill for publishing and wants to verify freshness
 - Asks "is this skill still accurate?" or "has the source changed?"
 - Performs routine maintenance on skills
+
+### Auto-Triggered (via Cursor globs)
+
+This skill is automatically injected into context when the user edits `README.md` (configurable via `.cursor/rules/skill-sync-checker.mdc` globs).
+
+When auto-triggered, follow this lightweight flow:
+
+1. Scan `skills/**/SKILL.md` for `<!-- source: ... -->` markers referencing the file being edited
+2. If a match is found, **briefly remind** the user that a skill depends on this file and may need syncing
+3. Do **not** automatically run the full detection workflow or modify any files — just notify
+
+Example notification:
+
+```
+Note: skills/reskill-usage/SKILL.md is derived from README.md (last synced: 2026-02-12).
+If your changes affect CLI commands, options, or usage examples, the skill may need updating.
+Run a sync check when you're done editing.
+```
 
 ## Source Marker Convention
 
@@ -122,6 +144,17 @@ Status: ✓ In sync
 No significant differences found.
 ```
 
+If the `<!-- synced: ... -->` marker is absent, report "Last synced: unknown":
+
+```
+Sync Check: skills/example/SKILL.md
+Source: docs/example-spec.md
+Last synced: unknown
+
+Status: ⚠ Out of sync
+...
+```
+
 ## Update Workflow
 
 When differences are detected and the user confirms they want to update:
@@ -152,6 +185,9 @@ When checking a skill, also scan the project for new documentation that might be
 | --------------------------------------- | ------------------------ | ------------------------ |
 | `*-spec.md`, `*-summary.md`             | Yes — user-facing specs  | Suggest adding as source |
 | `README.md`, `README.*.md`              | Yes — user-facing docs   | Suggest adding as source |
+| `API.md`, `docs/*.md`                   | Yes — user-facing docs   | Suggest adding as source |
+| `CHANGELOG.md`                          | No — auto-generated      | Skip                     |
+| `CONTRIBUTING.md`                       | No — contributor guide   | Skip                     |
 | `*-design.md`                           | No — internal design     | Skip                     |
 | `*-plan.md`, `*-implementation-plan.md` | No — internal plans      | Skip                     |
 | `*-migration-plan.md`                   | No — internal migration  | Skip                     |

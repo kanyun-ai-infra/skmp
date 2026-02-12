@@ -753,6 +753,197 @@ This is test content.
         expect(content2).not.toContain('Test skill for installer tests');
       });
     });
+
+    describe('globs from metadata', () => {
+      it('should include globs from metadata.globs in bridge file', async () => {
+        writeFileSync(
+          path.join(sourceDir, 'SKILL.md'),
+          '---\nname: test-skill\ndescription: Test skill\nmetadata:\n  globs: "README.md"\n---\n\n# Test',
+        );
+
+        await installer.installForAgent(sourceDir, 'test-skill', 'cursor', {
+          mode: 'copy',
+        });
+
+        const bridgePath = getBridgeRulePath('test-skill');
+        const content = readFileSync(bridgePath, 'utf-8');
+        expect(content).toContain('globs: "README.md"');
+      });
+
+      it('should leave globs empty when metadata has no globs', async () => {
+        await installer.installForAgent(sourceDir, 'test-skill', 'cursor', {
+          mode: 'copy',
+        });
+
+        const bridgePath = getBridgeRulePath('test-skill');
+        const content = readFileSync(bridgePath, 'utf-8');
+        expect(content).toMatch(/globs: \n/);
+      });
+
+      it('should leave globs empty when metadata.globs is not a string', async () => {
+        writeFileSync(
+          path.join(sourceDir, 'SKILL.md'),
+          '---\nname: test-skill\ndescription: Test skill\nmetadata:\n  globs: true\n---\n\n# Test',
+        );
+
+        await installer.installForAgent(sourceDir, 'test-skill', 'cursor', {
+          mode: 'copy',
+        });
+
+        const bridgePath = getBridgeRulePath('test-skill');
+        const content = readFileSync(bridgePath, 'utf-8');
+        expect(content).toMatch(/globs: \n/);
+      });
+
+      it('should support multiple glob patterns in metadata.globs', async () => {
+        writeFileSync(
+          path.join(sourceDir, 'SKILL.md'),
+          '---\nname: test-skill\ndescription: Test skill\nmetadata:\n  globs: "README.md, docs/**/*.md"\n---\n\n# Test',
+        );
+
+        await installer.installForAgent(sourceDir, 'test-skill', 'cursor', {
+          mode: 'copy',
+        });
+
+        const bridgePath = getBridgeRulePath('test-skill');
+        const content = readFileSync(bridgePath, 'utf-8');
+        expect(content).toContain('globs: "README.md, docs/**/*.md"');
+      });
+
+      it('should leave globs empty when metadata.globs is a number', async () => {
+        writeFileSync(
+          path.join(sourceDir, 'SKILL.md'),
+          '---\nname: test-skill\ndescription: Test skill\nmetadata:\n  globs: 123\n---\n\n# Test',
+        );
+
+        await installer.installForAgent(sourceDir, 'test-skill', 'cursor', {
+          mode: 'copy',
+        });
+
+        const bridgePath = getBridgeRulePath('test-skill');
+        const content = readFileSync(bridgePath, 'utf-8');
+        expect(content).toMatch(/globs: \n/);
+      });
+
+      it('should leave globs empty when metadata.globs is an empty string', async () => {
+        writeFileSync(
+          path.join(sourceDir, 'SKILL.md'),
+          '---\nname: test-skill\ndescription: Test skill\nmetadata:\n  globs: ""\n---\n\n# Test',
+        );
+
+        await installer.installForAgent(sourceDir, 'test-skill', 'cursor', {
+          mode: 'copy',
+        });
+
+        const bridgePath = getBridgeRulePath('test-skill');
+        const content = readFileSync(bridgePath, 'utf-8');
+        expect(content).toMatch(/globs: \n/);
+      });
+
+      it('should handle globs with special characters like curly braces', async () => {
+        writeFileSync(
+          path.join(sourceDir, 'SKILL.md'),
+          '---\nname: test-skill\ndescription: Test skill\nmetadata:\n  globs: "**/*.{ts,tsx}"\n---\n\n# Test',
+        );
+
+        await installer.installForAgent(sourceDir, 'test-skill', 'cursor', {
+          mode: 'copy',
+        });
+
+        const bridgePath = getBridgeRulePath('test-skill');
+        const content = readFileSync(bridgePath, 'utf-8');
+        expect(content).toContain('globs: "**/*.{ts,tsx}"');
+      });
+    });
+
+    describe('reinstall updates globs', () => {
+      it('should add globs when reinstalling with metadata.globs added', async () => {
+        // First install: no globs
+        await installer.installForAgent(sourceDir, 'test-skill', 'cursor', {
+          mode: 'copy',
+        });
+
+        const bridgePath = getBridgeRulePath('test-skill');
+        const content1 = readFileSync(bridgePath, 'utf-8');
+        expect(content1).toMatch(/globs: \n/);
+
+        // Update SKILL.md to add globs
+        writeFileSync(
+          path.join(sourceDir, 'SKILL.md'),
+          '---\nname: test-skill\ndescription: Test skill for installer tests\nmetadata:\n  globs: "README.md"\n---\n\n# Test',
+        );
+
+        // Reinstall
+        await installer.installForAgent(sourceDir, 'test-skill', 'cursor', {
+          mode: 'copy',
+        });
+
+        const content2 = readFileSync(bridgePath, 'utf-8');
+        expect(content2).toContain('globs: "README.md"');
+      });
+
+      it('should update globs when reinstalling with changed metadata.globs', async () => {
+        // First install: with globs
+        writeFileSync(
+          path.join(sourceDir, 'SKILL.md'),
+          '---\nname: test-skill\ndescription: Test skill\nmetadata:\n  globs: "README.md"\n---\n\n# Test',
+        );
+
+        await installer.installForAgent(sourceDir, 'test-skill', 'cursor', {
+          mode: 'copy',
+        });
+
+        const bridgePath = getBridgeRulePath('test-skill');
+        const content1 = readFileSync(bridgePath, 'utf-8');
+        expect(content1).toContain('globs: "README.md"');
+
+        // Update SKILL.md with different globs
+        writeFileSync(
+          path.join(sourceDir, 'SKILL.md'),
+          '---\nname: test-skill\ndescription: Test skill\nmetadata:\n  globs: "docs/**/*.md"\n---\n\n# Test',
+        );
+
+        // Reinstall
+        await installer.installForAgent(sourceDir, 'test-skill', 'cursor', {
+          mode: 'copy',
+        });
+
+        const content2 = readFileSync(bridgePath, 'utf-8');
+        expect(content2).toContain('globs: "docs/**/*.md"');
+        expect(content2).not.toContain('README.md');
+      });
+
+      it('should remove globs when reinstalling with metadata.globs removed', async () => {
+        // First install: with globs
+        writeFileSync(
+          path.join(sourceDir, 'SKILL.md'),
+          '---\nname: test-skill\ndescription: Test skill\nmetadata:\n  globs: "README.md"\n---\n\n# Test',
+        );
+
+        await installer.installForAgent(sourceDir, 'test-skill', 'cursor', {
+          mode: 'copy',
+        });
+
+        const bridgePath = getBridgeRulePath('test-skill');
+        const content1 = readFileSync(bridgePath, 'utf-8');
+        expect(content1).toContain('globs: "README.md"');
+
+        // Update SKILL.md to remove globs
+        writeFileSync(
+          path.join(sourceDir, 'SKILL.md'),
+          '---\nname: test-skill\ndescription: Test skill\n---\n\n# Test',
+        );
+
+        // Reinstall
+        await installer.installForAgent(sourceDir, 'test-skill', 'cursor', {
+          mode: 'copy',
+        });
+
+        const content2 = readFileSync(bridgePath, 'utf-8');
+        expect(content2).toMatch(/globs: \n/);
+        expect(content2).not.toContain('README.md');
+      });
+    });
   });
 
   // ============================================================================

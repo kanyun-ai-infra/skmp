@@ -173,6 +173,58 @@ This is an example rule for testing.
 }
 
 /**
+ * Create a local git repository with a mock skill that includes metadata (e.g., globs)
+ *
+ * @param dir - Parent directory to create the repo in
+ * @param name - Repository/skill name
+ * @param metadata - Metadata key-value pairs to include in SKILL.md frontmatter
+ * @param version - Skill version (default: "1.0.0")
+ * @returns Git URL for the repo (file:// protocol)
+ */
+export function createLocalGitRepoWithMetadata(
+  dir: string,
+  name: string,
+  metadata: Record<string, string>,
+  version = '1.0.0',
+): string {
+  const repoDir = path.join(dir, `${name}-repo`);
+  fs.mkdirSync(repoDir, { recursive: true });
+
+  // Build metadata YAML block
+  const metadataLines = Object.entries(metadata)
+    .map(([key, value]) => `  ${key}: "${value}"`)
+    .join('\n');
+
+  // Create SKILL.md with metadata in frontmatter
+  fs.writeFileSync(
+    path.join(repoDir, 'SKILL.md'),
+    `---
+name: ${name}
+description: A mock skill for testing with metadata
+version: ${version}
+metadata:
+${metadataLines}
+---
+
+# ${name}
+
+A mock skill for testing with metadata.
+`,
+  );
+
+  // Initialize git repository
+  execSync('git init', { cwd: repoDir, stdio: 'pipe' });
+  execSync('git config user.email "test@test.com"', { cwd: repoDir, stdio: 'pipe' });
+  execSync('git config user.name "Test User"', { cwd: repoDir, stdio: 'pipe' });
+  execSync('git add -A', { cwd: repoDir, stdio: 'pipe' });
+  execSync(`git commit -m "Initial commit v${version}"`, { cwd: repoDir, stdio: 'pipe' });
+  execSync(`git tag v${version}`, { cwd: repoDir, stdio: 'pipe' });
+
+  // Return file:// URL
+  return `file://${repoDir}`;
+}
+
+/**
  * Create a local git monorepo with a skill where folder name differs from SKILL.md name
  *
  * This creates a monorepo structure where the skill is in a subdirectory

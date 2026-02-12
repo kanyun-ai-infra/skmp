@@ -1,5 +1,5 @@
 <!-- source: README.md -->
-<!-- synced: 2026-02-11 -->
+<!-- synced: 2026-02-12 -->
 
 ---
 name: reskill-usage
@@ -56,20 +56,23 @@ npx reskill@latest list
 | Command               | Alias                | Description                               |
 | --------------------- | -------------------- | ----------------------------------------- |
 | `init`                | -                    | Initialize `skills.json`                  |
+| `find <query>`        | -                    | Search for skills in the registry         |
 | `install [skills...]` | `i`                  | Install one or more skills                |
 | `list`                | `ls`                 | List installed skills                     |
 | `info <skill>`        | -                    | Show skill details                        |
 | `update [skill]`      | `up`                 | Update skills                             |
 | `outdated`            | -                    | Check for outdated skills                 |
 | `uninstall <skill>`   | `un`, `rm`, `remove` | Remove a skill                            |
-| `publish [path]`      | `pub`                | Publish a skill to the registry           |
-| `login`               | -                    | Authenticate with the registry            |
-| `logout`              | -                    | Remove stored authentication              |
-| `whoami`              | -                    | Display current logged in user            |
+| `publish [path]`      | `pub`                | Publish a skill to the registry ¹         |
+| `login`               | -                    | Authenticate with the registry ¹          |
+| `logout`              | -                    | Remove stored authentication ¹            |
+| `whoami`              | -                    | Display current logged in user ¹          |
 | `doctor`              | -                    | Diagnose environment and check for issues |
 | `completion install`  | -                    | Install shell tab completion              |
 
-Run `reskill <command> --help` for complete options and detailed usage of any command.
+> ¹ Registry commands (`publish`, `login`, `logout`, `whoami`) require a private registry deployment. Not available for public use yet.
+
+Run `reskill <command> --help` for complete options and detailed usage.
 
 ### Common Options
 
@@ -82,6 +85,9 @@ Run `reskill <command> --help` for complete options and detailed usage of any co
 | `--all`                   | `install`                            | Install to all agents                                         |
 | `-y, --yes`               | `install`, `uninstall`, `publish`    | Skip confirmation prompts                                     |
 | `-f, --force`             | `install`                            | Force reinstall even if already installed                     |
+| `-s, --skill <names...>`  | `install`                            | Select specific skill(s) by name from a multi-skill repo      |
+| `--list`                  | `install`                            | List available skills in the repository without installing    |
+| `-r, --registry <url>`    | `install`                            | Registry URL override for registry-based installs             |
 | `-j, --json`              | `list`, `info`, `outdated`, `doctor` | Output as JSON                                                |
 
 ## Source Formats
@@ -90,34 +96,34 @@ reskill supports installing skills from multiple sources:
 
 ```bash
 # GitHub shorthand
-reskill install github:user/skill@v1.0.0
+npx reskill@latest install github:user/skill@v1.0.0
 
 # GitLab shorthand
-reskill install gitlab:group/skill@latest
+npx reskill@latest install gitlab:group/skill@latest
 
 # Full Git URL (HTTPS)
-reskill install https://github.com/user/skill.git
+npx reskill@latest install https://github.com/user/skill.git
 
 # Full Git URL (SSH)
-reskill install git@github.com:user/skill.git
+npx reskill@latest install git@github.com:user/skill.git
 
 # GitHub/GitLab web URL (with branch and subpath)
-reskill install https://github.com/vercel-labs/agent-skills/tree/main/skills/web-design-guidelines
+npx reskill@latest install https://github.com/vercel-labs/agent-skills/tree/main/skills/web-design-guidelines
 
 # Custom registry (self-hosted GitLab, etc.)
-reskill install gitlab.company.com:team/skill@v1.0.0
+npx reskill@latest install gitlab.company.com:team/skill@v1.0.0
 
 # HTTP/OSS archives
-reskill install https://example.com/skills/my-skill-v1.0.0.tar.gz
-reskill install oss://bucket/path/skill.tar.gz
-reskill install s3://bucket/path/skill.zip
+npx reskill@latest install https://example.com/skills/my-skill-v1.0.0.tar.gz
+npx reskill@latest install oss://bucket/path/skill.tar.gz
+npx reskill@latest install s3://bucket/path/skill.zip
 
 # Registry-based (requires registry deployment)
-reskill install @scope/skill-name@1.0.0
-reskill install skill-name
+npx reskill@latest install @scope/skill-name@1.0.0
+npx reskill@latest install skill-name
 
 # Install multiple skills at once
-reskill install github:user/skill1 github:user/skill2@v1.0.0
+npx reskill@latest install github:user/skill1 github:user/skill2@v1.0.0
 ```
 
 ### Monorepo Support
@@ -126,14 +132,18 @@ For repositories containing multiple skills, specify the path to the skill direc
 
 ```bash
 # Shorthand format with subpath
-reskill install github:org/monorepo/skills/planning@v1.0.0
+npx reskill@latest install github:org/monorepo/skills/planning@v1.0.0
+npx reskill@latest install gitlab:company/skills/frontend/components@latest
 
 # URL format with subpath
-reskill install https://github.com/org/monorepo.git/skills/planning@v1.0.0
+npx reskill@latest install https://github.com/org/monorepo.git/skills/planning@v1.0.0
+npx reskill@latest install git@gitlab.company.com:team/skills.git/backend/apis@v2.0.0
 
 # GitHub web URL automatically extracts subpath
-reskill install https://github.com/org/monorepo/tree/main/skills/planning
+npx reskill@latest install https://github.com/org/monorepo/tree/main/skills/planning
 ```
+
+**Requirements**: The specified directory must contain a valid `SKILL.md` file following the [Agent Skills Specification](https://agentskills.io).
 
 ### HTTP/OSS URL Support
 
@@ -201,7 +211,7 @@ The project configuration file, created by `reskill init`:
 
 ## Multi-Agent Support
 
-Skills are installed to a canonical directory (`.agents/skills/` or configured `installDir`) and symlinked to each agent's skills directory:
+Skills are installed to `.skills/` by default and can be integrated with any agent:
 
 | Agent          | Path                                  |
 | -------------- | ------------------------------------- |

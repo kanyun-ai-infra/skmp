@@ -9,6 +9,8 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
+  createLocalGitRepo,
+  createLocalGitRepoWithMetadata,
   createMockSkill,
   createTempDir,
   pathExists,
@@ -130,6 +132,101 @@ describe('CLI Integration: install --mode copy', () => {
       const { stdout } = runCli('install --help', tempDir);
       expect(stdout).toContain('--mode');
       expect(stdout).toMatch(/symlink|copy/i);
+    });
+  });
+
+  describe('Cursor bridge rule globs from metadata', () => {
+    it('should create .mdc bridge file with globs from metadata.globs', () => {
+      const repoUrl = createLocalGitRepoWithMetadata(
+        tempDir,
+        'globs-skill',
+        { globs: 'README.md' },
+      );
+
+      const { exitCode } = runCli(
+        `install ${repoUrl} -a cursor --mode copy -y`,
+        tempDir,
+      );
+      expect(exitCode).toBe(0);
+
+      // Verify bridge file was created with correct globs
+      const bridgePath = path.join(tempDir, '.cursor', 'rules', 'globs-skill.mdc');
+      expect(pathExists(bridgePath)).toBe(true);
+
+      const content = fs.readFileSync(bridgePath, 'utf-8');
+      expect(content).toContain('globs: "README.md"');
+      expect(content).toContain('reskill:auto-generated');
+    });
+
+    it('should create .mdc bridge file with empty globs when no metadata.globs', () => {
+      const repoUrl = createLocalGitRepo(tempDir, 'no-globs-skill');
+
+      const { exitCode } = runCli(
+        `install ${repoUrl} -a cursor --mode copy -y`,
+        tempDir,
+      );
+      expect(exitCode).toBe(0);
+
+      // Verify bridge file was created with empty globs
+      const bridgePath = path.join(tempDir, '.cursor', 'rules', 'no-globs-skill.mdc');
+      expect(pathExists(bridgePath)).toBe(true);
+
+      const content = fs.readFileSync(bridgePath, 'utf-8');
+      expect(content).toMatch(/globs: \n/);
+    });
+
+    it('should create .mdc bridge file with multiple glob patterns', () => {
+      const repoUrl = createLocalGitRepoWithMetadata(
+        tempDir,
+        'multi-globs-skill',
+        { globs: 'README.md, docs/**/*.md' },
+      );
+
+      const { exitCode } = runCli(
+        `install ${repoUrl} -a cursor --mode copy -y`,
+        tempDir,
+      );
+      expect(exitCode).toBe(0);
+
+      const bridgePath = path.join(tempDir, '.cursor', 'rules', 'multi-globs-skill.mdc');
+      expect(pathExists(bridgePath)).toBe(true);
+
+      const content = fs.readFileSync(bridgePath, 'utf-8');
+      expect(content).toContain('globs: "README.md, docs/**/*.md"');
+    });
+
+    it('should regenerate .mdc bridge file on reinstall with --force', () => {
+      const repoUrl = createLocalGitRepoWithMetadata(
+        tempDir,
+        'regen-globs-skill',
+        { globs: 'README.md' },
+      );
+
+      const { exitCode: exitCode1 } = runCli(
+        `install ${repoUrl} -a cursor --mode copy -y`,
+        tempDir,
+      );
+      expect(exitCode1).toBe(0);
+
+      const bridgePath = path.join(tempDir, '.cursor', 'rules', 'regen-globs-skill.mdc');
+      expect(pathExists(bridgePath)).toBe(true);
+
+      // Delete the bridge file to simulate corruption or manual deletion
+      fs.unlinkSync(bridgePath);
+      expect(pathExists(bridgePath)).toBe(false);
+
+      // Reinstall with --force should regenerate the bridge file
+      const { exitCode: exitCode2 } = runCli(
+        `install ${repoUrl} -a cursor --mode copy -y --force`,
+        tempDir,
+      );
+      expect(exitCode2).toBe(0);
+
+      // Bridge file should be regenerated with correct globs
+      expect(pathExists(bridgePath)).toBe(true);
+      const content = fs.readFileSync(bridgePath, 'utf-8');
+      expect(content).toContain('globs: "README.md"');
+      expect(content).toContain('reskill:auto-generated');
     });
   });
 });

@@ -46,6 +46,7 @@ npx reskill@latest <command>  # Or use npx directly
 | Command               | Alias                | Description                               |
 | --------------------- | -------------------- | ----------------------------------------- |
 | `init`                | -                    | Initialize `skills.json`                  |
+| `find <query>`        | -                    | Search for skills in the registry         |
 | `install [skills...]` | `i`                  | Install one or more skills                |
 | `list`                | `ls`                 | List installed skills                     |
 | `info <skill>`        | -                    | Show skill details                        |
@@ -57,9 +58,9 @@ npx reskill@latest <command>  # Or use npx directly
 | `logout`              | -                    | Remove stored authentication ¹            |
 | `whoami`              | -                    | Display current logged in user ¹          |
 | `doctor`              | -                    | Diagnose environment and check for issues |
+| `completion install`  | -                    | Install shell tab completion              |
 
 > ¹ Registry commands (`publish`, `login`, `logout`, `whoami`) require a private registry deployment. Not available for public use yet.
-| `completion install` | - | Install shell tab completion |
 
 ### Common Options
 
@@ -72,6 +73,9 @@ npx reskill@latest <command>  # Or use npx directly
 | `--all`                   | `install`                            | Install to all agents                                         |
 | `-y, --yes`               | `install`, `uninstall`, `publish`    | Skip confirmation prompts                                     |
 | `-f, --force`             | `install`                            | Force reinstall even if already installed                     |
+| `-s, --skill <names...>`  | `install`                            | Select specific skill(s) by name from a multi-skill repo      |
+| `--list`                  | `install`                            | List available skills in the repository without installing    |
+| `-r, --registry <url>`    | `install`                            | Registry URL override for registry-based installs             |
 | `-j, --json`              | `list`, `info`, `outdated`, `doctor` | Output as JSON                                                |
 
 Run `reskill <command> --help` for complete options and detailed usage.
@@ -101,6 +105,10 @@ npx reskill@latest install gitlab.company.com:team/skill@v1.0.0
 npx reskill@latest install https://example.com/skills/my-skill-v1.0.0.tar.gz
 npx reskill@latest install oss://bucket/path/skill.tar.gz
 npx reskill@latest install s3://bucket/path/skill.zip
+
+# Registry-based (requires registry deployment)
+npx reskill@latest install @scope/skill-name@1.0.0
+npx reskill@latest install skill-name
 
 # Install multiple skills at once
 npx reskill@latest install github:user/skill1 github:user/skill2@v1.0.0
@@ -191,6 +199,7 @@ Skills are installed to `.skills/` by default and can be integrated with any age
 | Codex          | `.codex/skills/`                      |
 | Windsurf       | `.windsurf/skills/`                   |
 | GitHub Copilot | `.github/skills/`                     |
+| OpenCode       | `.opencode/skills/`                   |
 
 ## Publishing Skills
 
