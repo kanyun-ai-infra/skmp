@@ -11,7 +11,10 @@ function runGitCommand(command) {
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'ignore'],
     }).trim();
-  } catch {
+  } catch (error) {
+    if (process.env.DEBUG) {
+      console.error(`[readme-sync] git command failed: ${command}`, error.message);
+    }
     return '';
   }
 }
@@ -64,6 +67,9 @@ function getChangedFiles() {
     }
   }
 
+  // Fallback: compare against the previous commit only. This may miss changes
+  // spread across multiple commits in a PR branch. CI uses merge-base above
+  // for accurate full-PR comparison; this path is mainly for local convenience.
   return parseChangedFiles(runGitCommand('git diff --name-only HEAD~1..HEAD'));
 }
 
