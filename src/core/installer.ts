@@ -500,10 +500,13 @@ export class Installer {
       const globs = parsed.metadata?.globs;
       const globsValue = typeof globs === 'string' && globs.length > 0 ? `"${globs}"` : '';
 
+      // Read alwaysApply from metadata if available (default: false)
+      const alwaysApply = parsed.metadata?.alwaysApply === true;
+
       const bridgeContent = `---
 description: "${safeDescription}"
 globs: ${globsValue}
-alwaysApply: false
+alwaysApply: ${alwaysApply}
 ---
 
 ${CURSOR_BRIDGE_MARKER}

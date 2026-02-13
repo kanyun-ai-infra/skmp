@@ -621,7 +621,7 @@ This is test content.
         expect(content).toContain('@file .cursor/skills/test-skill/SKILL.md');
       });
 
-      it('should include alwaysApply: false in bridge file', async () => {
+      it('should include alwaysApply: false in bridge file by default', async () => {
         await installer.installForAgent(sourceDir, 'test-skill', 'cursor', {
           mode: 'copy',
         });
@@ -629,6 +629,32 @@ This is test content.
         const bridgePath = getBridgeRulePath('test-skill');
         const content = readFileSync(bridgePath, 'utf-8');
         expect(content).toContain('alwaysApply: false');
+      });
+
+      it('should include alwaysApply: true when metadata.alwaysApply is true', async () => {
+        // Create a SKILL.md with alwaysApply in metadata
+        const skillMdWithAlwaysApply = `---
+name: always-apply-skill
+description: A skill that should always apply
+metadata:
+  alwaysApply: true
+---
+
+# Always Apply Skill
+
+This skill is always active.
+`;
+        const alwaysApplySourceDir = path.join(tempDir, 'always-apply-source');
+        mkdirSync(alwaysApplySourceDir, { recursive: true });
+        writeFileSync(path.join(alwaysApplySourceDir, 'SKILL.md'), skillMdWithAlwaysApply);
+
+        await installer.installForAgent(alwaysApplySourceDir, 'always-apply-skill', 'cursor', {
+          mode: 'copy',
+        });
+
+        const bridgePath = getBridgeRulePath('always-apply-skill');
+        const content = readFileSync(bridgePath, 'utf-8');
+        expect(content).toContain('alwaysApply: true');
       });
 
       it('should create .cursor/rules/ directory if it does not exist', async () => {
