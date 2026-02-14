@@ -51,10 +51,10 @@ describe('SkillManager', () => {
       expect(skillManager.getInstallDir()).toBe(path.join(tempDir, '.skills'));
     });
 
-    it('should return global install directory when in global mode', () => {
+    it('should return canonical global directory when in global mode', () => {
       const globalManager = new SkillManager(tempDir, { global: true });
       const home = process.env.HOME || process.env.USERPROFILE || '';
-      expect(globalManager.getInstallDir()).toBe(path.join(home, '.claude', 'skills'));
+      expect(globalManager.getInstallDir()).toBe(path.join(home, '.agents', 'skills'));
     });
 
     it('should use config installDir when available', () => {
@@ -1379,6 +1379,70 @@ description: A skill without version
       expect(skill).not.toBeNull();
       // SKILL.md has no version, returns 'unknown'
       expect(skill?.version).toBe('unknown');
+    });
+  });
+
+  describe('list() should include agents field', () => {
+    it('should detect agents that have the skill installed (project mode)', () => {
+      // Create skill in canonical location
+      const canonicalDir = path.join(tempDir, '.agents', 'skills', 'my-skill');
+      fs.mkdirSync(canonicalDir, { recursive: true });
+      fs.writeFileSync(path.join(canonicalDir, 'SKILL.md'), '# My Skill');
+
+      // Simulate agent installation: create skill dirs in agent-specific locations
+      const cursorSkillDir = path.join(tempDir, '.cursor', 'skills', 'my-skill');
+      fs.mkdirSync(cursorSkillDir, { recursive: true });
+
+      const claudeSkillDir = path.join(tempDir, '.claude', 'skills', 'my-skill');
+      fs.mkdirSync(claudeSkillDir, { recursive: true });
+
+      const skills = skillManager.list();
+      expect(skills).toHaveLength(1);
+      expect(skills[0].agents).toBeDefined();
+      expect(skills[0].agents).toContain('cursor');
+      expect(skills[0].agents).toContain('claude-code');
+      // Should NOT contain agents that don't have the skill
+      expect(skills[0].agents).not.toContain('codex');
+    });
+
+    it('should return empty agents array when no agent directories have the skill', () => {
+      // Create skill only in canonical location, no agent dirs
+      const canonicalDir = path.join(tempDir, '.agents', 'skills', 'orphan-skill');
+      fs.mkdirSync(canonicalDir, { recursive: true });
+      fs.writeFileSync(path.join(canonicalDir, 'SKILL.md'), '# Orphan Skill');
+
+      const skills = skillManager.list();
+      expect(skills).toHaveLength(1);
+      expect(skills[0].agents).toBeDefined();
+      expect(skills[0].agents).toHaveLength(0);
+    });
+
+    it('should detect different agents for different skills', () => {
+      // skill-a: installed for cursor only
+      const skillACanonical = path.join(tempDir, '.agents', 'skills', 'skill-a');
+      fs.mkdirSync(skillACanonical, { recursive: true });
+      fs.writeFileSync(path.join(skillACanonical, 'SKILL.md'), '# Skill A');
+      const cursorSkillA = path.join(tempDir, '.cursor', 'skills', 'skill-a');
+      fs.mkdirSync(cursorSkillA, { recursive: true });
+
+      // skill-b: installed for claude-code only
+      const skillBCanonical = path.join(tempDir, '.agents', 'skills', 'skill-b');
+      fs.mkdirSync(skillBCanonical, { recursive: true });
+      fs.writeFileSync(path.join(skillBCanonical, 'SKILL.md'), '# Skill B');
+      const claudeSkillB = path.join(tempDir, '.claude', 'skills', 'skill-b');
+      fs.mkdirSync(claudeSkillB, { recursive: true });
+
+      const skills = skillManager.list();
+      expect(skills).toHaveLength(2);
+
+      const skillA = skills.find((s) => s.name === 'skill-a');
+      const skillB = skills.find((s) => s.name === 'skill-b');
+
+      expect(skillA?.agents).toContain('cursor');
+      expect(skillA?.agents).not.toContain('claude-code');
+
+      expect(skillB?.agents).toContain('claude-code');
+      expect(skillB?.agents).not.toContain('cursor');
     });
   });
 
