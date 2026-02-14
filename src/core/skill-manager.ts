@@ -9,7 +9,6 @@ import {
   copyDir,
   ensureDir,
   exists,
-  getGlobalSkillsDir,
   getRealPath,
   isDirectory,
   isSymlink,
@@ -98,12 +97,12 @@ export class SkillManager {
   /**
    * Get legacy installation directory (for backward compatibility)
    *
-   * - Global mode: ~/.claude/skills/
+   * - Global mode: ~/.agents/skills/ (canonical)
    * - Project mode: .skills/ or directory configured in skills.json
    */
   getInstallDir(): string {
     if (this.isGlobal) {
-      return getGlobalSkillsDir();
+      return this.getCanonicalSkillsDir();
     }
     return this.config.getInstallDir();
   }
@@ -595,6 +594,34 @@ export class SkillManager {
   }
 
   /**
+   * Detect which agents have a skill installed (symlink or copy)
+   *
+   * Scans all known agent directories to check if the skill exists there.
+   * Excludes the canonical directory (.agents/skills/) to avoid false positives
+   * from agents whose skillsDir overlaps with the canonical path (e.g. amp).
+   */
+  private detectSkillAgents(skillName: string): AgentType[] {
+    const canonicalDir = this.getCanonicalSkillsDir();
+    const installed: AgentType[] = [];
+    for (const [type, config] of Object.entries(agents)) {
+      const agentBase = this.isGlobal
+        ? config.globalSkillsDir
+        : path.join(this.projectRoot, config.skillsDir);
+
+      // Skip agents whose skillsDir is the canonical directory itself
+      if (path.resolve(agentBase) === path.resolve(canonicalDir)) {
+        continue;
+      }
+
+      const agentSkillDir = path.join(agentBase, skillName);
+      if (exists(agentSkillDir)) {
+        installed.push(type as AgentType);
+      }
+    }
+    return installed;
+  }
+
+  /**
    * Get installed skill information from a specific path
    */
   private getInstalledSkillFromPath(name: string, skillPath: string): InstalledSkill | null {
@@ -617,6 +644,7 @@ export class SkillManager {
       version,
       source: isLinked ? getRealPath(skillPath) : locked?.source || '',
       isLinked,
+      agents: this.detectSkillAgents(name),
     };
   }
 

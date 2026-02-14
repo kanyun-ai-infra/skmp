@@ -163,6 +163,35 @@ describe('CLI Integration: list', () => {
     // Should not error (may return empty list)
     expect(exitCode).toBe(0);
   });
+
+  it('should show "project" label in header for project-level list', () => {
+    // Create a skill directory
+    const skillDir = path.join(tempDir, '.skills', 'test-skill');
+    fs.mkdirSync(skillDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(skillDir, 'skill.json'),
+      JSON.stringify({ name: 'test-skill', version: '1.0.0' }),
+    );
+
+    const { stdout, exitCode } = runCli('list', tempDir);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('Installed Skills (project)');
+  });
+
+  it('should show Agents column in list output', () => {
+    // Create a skill in canonical location + agent directory
+    const canonicalDir = path.join(tempDir, '.agents', 'skills', 'test-skill');
+    fs.mkdirSync(canonicalDir, { recursive: true });
+    fs.writeFileSync(path.join(canonicalDir, 'SKILL.md'), '# Test Skill');
+
+    const cursorDir = path.join(tempDir, '.cursor', 'skills', 'test-skill');
+    fs.mkdirSync(cursorDir, { recursive: true });
+
+    const { stdout, exitCode } = runCli('list', tempDir);
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('Agents');
+    expect(stdout).toContain('Cursor');
+  });
 });
 
 // ============================================================================

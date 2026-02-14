@@ -3,6 +3,8 @@
  * Based on: docs/skills-management-design.md
  */
 
+import type { AgentConfig, AgentType } from '../core/agent-registry.js';
+
 // ============================================================================
 // Multi-Agent related types
 // ============================================================================
@@ -10,10 +12,7 @@
 /**
  * Supported Agent types
  */
-export type {
-  AgentConfig,
-  AgentType,
-} from '../core/agent-registry.js';
+export type { AgentConfig, AgentType };
 
 /**
  * Installation mode
@@ -248,6 +247,8 @@ export interface InstalledSkill {
   metadata?: SkillJson;
   /** Whether linked */
   isLinked?: boolean;
+  /** Agents that have this skill installed (symlink or copy) */
+  agents?: AgentType[];
 }
 
 // ============================================================================

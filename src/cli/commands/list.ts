@@ -1,5 +1,5 @@
-import chalk from 'chalk';
 import { Command } from 'commander';
+import { getAgentConfig } from '../../core/agent-registry.js';
 import { SkillManager } from '../../core/skill-manager.js';
 import { logger } from '../../utils/logger.js';
 
@@ -27,15 +27,18 @@ export const listCommand = new Command('list')
       return;
     }
 
-    const locationLabel = isGlobal ? chalk.dim(' (global)') : '';
-    logger.log(`Installed Skills (${skillManager.getInstallDir()})${locationLabel}:`);
+    const scopeLabel = isGlobal ? 'global' : 'project';
+    logger.log(`Installed Skills (${scopeLabel}):`);
     logger.newline();
 
-    const headers = ['Name', 'Version', 'Source'];
+    const headers = ['Name', 'Version', 'Source', 'Agents'];
     const rows = skills.map((skill) => [
       skill.name,
       skill.isLinked ? `${skill.version} (linked)` : skill.version,
       skill.source || '-',
+      skill.agents?.length
+        ? skill.agents.map((a) => getAgentConfig(a).displayName).join(', ')
+        : '-',
     ]);
 
     logger.table(headers, rows);
