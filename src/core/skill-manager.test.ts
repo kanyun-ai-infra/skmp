@@ -1243,6 +1243,34 @@ describe('SkillManager installToAgentsFromRegistry with source_type', () => {
       );
     });
 
+    it('should fall back to #shortName when parseGitUrl fails with skill_path', async () => {
+      const { RegistryClient } = await import('./registry-client.js');
+      vi.spyOn(RegistryClient.prototype, 'getSkillInfo').mockResolvedValue({
+        name: '@kanyun/my-skill',
+        source_type: 'github',
+        source_url: 'not-a-valid-git-url',
+        skill_path: 'skills/my-skill',
+      });
+
+      const installFromGitSpy = vi
+        .spyOn(
+          manager as unknown as Record<string, (...args: unknown[]) => unknown>,
+          'installToAgentsFromGit',
+        )
+        .mockResolvedValue({
+          skill: { name: 'my-skill', path: '/tmp/skill', version: '1.0.0', source: 'github' },
+          results: new Map([['cursor', { success: true, path: '/tmp', mode: 'symlink' }]]),
+        });
+
+      await manager.installToAgents('@kanyun/my-skill', ['cursor']);
+
+      expect(installFromGitSpy).toHaveBeenCalledWith(
+        'not-a-valid-git-url#my-skill',
+        ['cursor'],
+        expect.any(Object),
+      );
+    });
+
     it('should construct ref with skill_path for gitlab source_type', async () => {
       const { RegistryClient } = await import('./registry-client.js');
       vi.spyOn(RegistryClient.prototype, 'getSkillInfo').mockResolvedValue({

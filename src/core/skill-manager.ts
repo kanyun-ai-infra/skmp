@@ -1360,8 +1360,16 @@ export class SkillManager {
    *
    * When `skillPath` is provided (multi-skill repo), constructs a shorthand ref
    * like `github:owner/repo/skills/my-skill` so that only the sub-directory is
-   * cached and installed.  Falls back to `#skillName` selector if URL parsing
-   * fails, or returns the raw `sourceUrl` when no `skillPath` is available.
+   * cached and installed.
+   *
+   * Fallback: if `parseGitUrl` fails (non-standard URL), appends `#shortName`
+   * as a skill-name selector. The `#` fragment is extracted by
+   * `GitResolver.parseRef()` as `parsed.skillName`, then matched against
+   * SKILL.md `name` fields via `resolveSourcePath` / `discoverSkillsInDir`.
+   * This differs from the subPath approach (directory-based) but works because
+   * skill names typically match their directory basenames.
+   *
+   * Returns the raw `sourceUrl` when no `skillPath` is available.
    */
   private buildGitRefForWebPublished(
     sourceType: string,

@@ -472,6 +472,8 @@ To replace it, first remove the existing directory:
 
 > **说明**：`source_url` 为仓库级 URL，`skill_path` 指向仓库内的具体技能目录。install 时组合为 `{source_type}:{owner}/{repo}/{skill_path}` 格式的 Git ref，由 `GitResolver.parseRef()` 解析。
 
+> **兼容性（v7）**：v7 之前发布的旧数据中，`skill_path` 字段不存在，`source_url` 可能包含完整路径（如 `https://github.com/user/repo/tree/main/skills/my-skill`）。客户端对此完全向后兼容——当 `skill_path` 为空时，`source_url` 原值直接传递给 `installToAgentsFromGit`，由 `GitResolver` 按现有逻辑解析。仅当 `skill_path` 存在时，才使用 `source_url`（仓库 URL）+ `skill_path`（子路径）的组合方式。
+
 #### 其他表（无改动）
 
 | 表               | 字段                    | 示例值                                                    |
