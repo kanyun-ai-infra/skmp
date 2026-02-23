@@ -507,16 +507,15 @@ description: ${s.description}
         { name: 'commit', description: 'Commit skill' },
       ]);
 
-      const result = await skillManager.installSkillsFromRepo(
-        fileUrl,
-        [],
-        ['cursor'],
-        { listOnly: true },
-      );
+      const result = await skillManager.installSkillsFromRepo(fileUrl, [], ['cursor'], {
+        listOnly: true,
+      });
 
       expect(result.listOnly).toBe(true);
       expect('skills' in result && result.skills).toHaveLength(2);
-      const names = (result as { skills: Array<{ name: string }> }).skills.map((s) => s.name).sort();
+      const names = (result as { skills: Array<{ name: string }> }).skills
+        .map((s) => s.name)
+        .sort();
       expect(names).toEqual(['commit', 'pdf']);
     });
 
@@ -526,12 +525,9 @@ description: ${s.description}
         { name: 'commit', description: 'Commit skill' },
       ]);
 
-      const result = await skillManager.installSkillsFromRepo(
-        fileUrl,
-        ['pdf'],
-        ['cursor'],
-        { save: true },
-      );
+      const result = await skillManager.installSkillsFromRepo(fileUrl, ['pdf'], ['cursor'], {
+        save: true,
+      });
 
       expect(result.listOnly).toBe(false);
       if (result.listOnly) throw new Error('unexpected listOnly');
@@ -547,9 +543,7 @@ description: ${s.description}
     });
 
     it('should throw when no skills match and list available', async () => {
-      const fileUrl = createLocalMultiSkillRepo([
-        { name: 'pdf', description: 'PDF skill' },
-      ]);
+      const fileUrl = createLocalMultiSkillRepo([{ name: 'pdf', description: 'PDF skill' }]);
 
       await expect(
         skillManager.installSkillsFromRepo(fileUrl, ['nonexistent'], ['cursor'], {}),
@@ -926,7 +920,6 @@ describe('SkillManager update() should check remote before reinstalling', () => 
     expect(updated[0].name).toBe('my-registry-skill');
     expect(updated[0].version).toBe('2.0.0');
   });
-
 });
 
 describe('SkillManager with custom registries', () => {
@@ -1136,7 +1129,10 @@ describe('SkillManager installToAgentsFromRegistry with source_type', () => {
 
       // Mock installToAgentsFromGit
       const installFromGitSpy = vi
-        .spyOn(manager as unknown as Record<string, (...args: unknown[]) => unknown>, 'installToAgentsFromGit')
+        .spyOn(
+          manager as unknown as Record<string, (...args: unknown[]) => unknown>,
+          'installToAgentsFromGit',
+        )
         .mockResolvedValue({
           skill: { name: 'my-skill', path: '/tmp/skill', version: '1.0.0', source: 'github' },
           results: new Map([['cursor', { success: true, path: '/tmp', mode: 'symlink' }]]),
@@ -1160,7 +1156,10 @@ describe('SkillManager installToAgentsFromRegistry with source_type', () => {
 
       // Mock installToAgentsFromGit
       const installFromGitSpy = vi
-        .spyOn(manager as unknown as Record<string, (...args: unknown[]) => unknown>, 'installToAgentsFromGit')
+        .spyOn(
+          manager as unknown as Record<string, (...args: unknown[]) => unknown>,
+          'installToAgentsFromGit',
+        )
         .mockResolvedValue({
           skill: { name: 'my-skill', path: '/tmp/skill', version: '1.0.0', source: 'github' },
           results: new Map([['cursor', { success: true, path: '/tmp', mode: 'symlink' }]]),
@@ -1181,13 +1180,22 @@ describe('SkillManager installToAgentsFromRegistry with source_type', () => {
       vi.spyOn(RegistryClient.prototype, 'getSkillInfo').mockResolvedValue({
         name: '@kanyun/vercel-react-best-practices',
         source_type: 'github',
-        source_url: 'https://github.com/vercel-labs/agent-skills/tree/main/skills/react-best-practices',
+        source_url:
+          'https://github.com/vercel-labs/agent-skills/tree/main/skills/react-best-practices',
       });
 
       const installFromGitSpy = vi
-        .spyOn(manager as unknown as Record<string, (...args: unknown[]) => unknown>, 'installToAgentsFromGit')
+        .spyOn(
+          manager as unknown as Record<string, (...args: unknown[]) => unknown>,
+          'installToAgentsFromGit',
+        )
         .mockResolvedValue({
-          skill: { name: 'vercel-react-best-practices', path: '/tmp/skill', version: '1.0.0', source: 'registry:@kanyun/vercel-react-best-practices' },
+          skill: {
+            name: 'vercel-react-best-practices',
+            path: '/tmp/skill',
+            version: '1.0.0',
+            source: 'registry:@kanyun/vercel-react-best-practices',
+          },
           results: new Map([['cursor', { success: true, path: '/tmp', mode: 'symlink' }]]),
         });
 
@@ -1221,7 +1229,12 @@ describe('SkillManager installToAgentsFromRegistry with source_type', () => {
           'installToAgentsFromHttp',
         )
         .mockResolvedValue({
-          skill: { name: 'oss-skill', path: '/tmp/skill', version: '1.0.0', source: 'registry:@kanyun/oss-skill' },
+          skill: {
+            name: 'oss-skill',
+            path: '/tmp/skill',
+            version: '1.0.0',
+            source: 'registry:@kanyun/oss-skill',
+          },
           results: new Map([['cursor', { success: true, path: '/tmp', mode: 'symlink' }]]),
         });
 
@@ -1340,6 +1353,119 @@ describe('SkillManager installToAgentsFromRegistry with source_type', () => {
     });
   });
 
+  describe('skill_path 支持（多技能仓库）', () => {
+    it('should construct ref with skill_path for github source_type', async () => {
+      const { RegistryClient } = await import('./registry-client.js');
+      vi.spyOn(RegistryClient.prototype, 'getSkillInfo').mockResolvedValue({
+        name: '@kanyun/accessibility',
+        source_type: 'github',
+        source_url: 'https://github.com/user/web-quality-skills',
+        skill_path: 'skills/accessibility',
+      });
+
+      const installFromGitSpy = vi
+        .spyOn(
+          manager as unknown as Record<string, (...args: unknown[]) => unknown>,
+          'installToAgentsFromGit',
+        )
+        .mockResolvedValue({
+          skill: { name: 'accessibility', path: '/tmp/skill', version: '1.0.0', source: 'github' },
+          results: new Map([['cursor', { success: true, path: '/tmp', mode: 'symlink' }]]),
+        });
+
+      await manager.installToAgents('@kanyun/accessibility', ['cursor']);
+
+      expect(installFromGitSpy).toHaveBeenCalledWith(
+        'github:user/web-quality-skills/skills/accessibility',
+        ['cursor'],
+        expect.any(Object),
+      );
+    });
+
+    it('should use source_url as-is when skill_path is absent', async () => {
+      const { RegistryClient } = await import('./registry-client.js');
+      vi.spyOn(RegistryClient.prototype, 'getSkillInfo').mockResolvedValue({
+        name: '@kanyun/github-skill',
+        source_type: 'github',
+        source_url: 'https://github.com/user/repo/tree/main/skills/my-skill',
+      });
+
+      const installFromGitSpy = vi
+        .spyOn(
+          manager as unknown as Record<string, (...args: unknown[]) => unknown>,
+          'installToAgentsFromGit',
+        )
+        .mockResolvedValue({
+          skill: { name: 'my-skill', path: '/tmp/skill', version: '1.0.0', source: 'github' },
+          results: new Map([['cursor', { success: true, path: '/tmp', mode: 'symlink' }]]),
+        });
+
+      await manager.installToAgents('@kanyun/github-skill', ['cursor']);
+
+      expect(installFromGitSpy).toHaveBeenCalledWith(
+        'https://github.com/user/repo/tree/main/skills/my-skill',
+        ['cursor'],
+        expect.any(Object),
+      );
+    });
+
+    it('should fall back to #shortName when parseGitUrl fails with skill_path', async () => {
+      const { RegistryClient } = await import('./registry-client.js');
+      vi.spyOn(RegistryClient.prototype, 'getSkillInfo').mockResolvedValue({
+        name: '@kanyun/my-skill',
+        source_type: 'github',
+        source_url: 'not-a-valid-git-url',
+        skill_path: 'skills/my-skill',
+      });
+
+      const installFromGitSpy = vi
+        .spyOn(
+          manager as unknown as Record<string, (...args: unknown[]) => unknown>,
+          'installToAgentsFromGit',
+        )
+        .mockResolvedValue({
+          skill: { name: 'my-skill', path: '/tmp/skill', version: '1.0.0', source: 'github' },
+          results: new Map([['cursor', { success: true, path: '/tmp', mode: 'symlink' }]]),
+        });
+
+      await manager.installToAgents('@kanyun/my-skill', ['cursor']);
+
+      expect(installFromGitSpy).toHaveBeenCalledWith(
+        'not-a-valid-git-url#my-skill',
+        ['cursor'],
+        expect.any(Object),
+      );
+    });
+
+    it('should construct ref with skill_path for gitlab source_type', async () => {
+      const { RegistryClient } = await import('./registry-client.js');
+      vi.spyOn(RegistryClient.prototype, 'getSkillInfo').mockResolvedValue({
+        name: '@kanyun/seo',
+        source_type: 'gitlab',
+        source_url: 'https://gitlab.com/org/skills-repo',
+        skill_path: 'skills/seo',
+      });
+
+      const installFromGitSpy = vi
+        .spyOn(
+          manager as unknown as Record<string, (...args: unknown[]) => unknown>,
+          'installToAgentsFromGit',
+        )
+        .mockResolvedValue({
+          skill: { name: 'seo', path: '/tmp/skill', version: '1.0.0', source: 'gitlab' },
+          results: new Map([['cursor', { success: true, path: '/tmp', mode: 'symlink' }]]),
+        });
+
+      await manager.installToAgents('@kanyun/seo', ['cursor']);
+
+      expect(installFromGitSpy).toHaveBeenCalledWith(
+        'gitlab:org/skills-repo/skills/seo',
+        ['cursor'],
+        expect.any(Object),
+      );
+    });
+  });
+
   describe('source_url 校验', () => {
     it('should throw error when source_url is missing for web-published skill', async () => {
       const { RegistryClient } = await import('./registry-client.js');
@@ -1397,12 +1523,10 @@ describe('SkillManager installToAgentsFromRegistry with source_type', () => {
       const customRegistryUrl = 'https://custom-registry.example.com';
 
       const { RegistryClient } = await import('./registry-client.js');
-      const getSkillInfoSpy = vi
-        .spyOn(RegistryClient.prototype, 'getSkillInfo')
-        .mockResolvedValue({
-          name: 'my-skill',
-          source_type: 'registry',
-        });
+      const getSkillInfoSpy = vi.spyOn(RegistryClient.prototype, 'getSkillInfo').mockResolvedValue({
+        name: 'my-skill',
+        source_type: 'registry',
+      });
 
       // Mock RegistryResolver
       const registryResolver = (manager as unknown as { registryResolver: RegistryResolver })
@@ -1467,7 +1591,10 @@ describe('SkillManager installToAgentsFromRegistry with source_type', () => {
 
       // resolve should receive the pre-resolved registry URL (not undefined)
       // because installToAgentsFromRegistry resolves the URL once and passes it down
-      expect(resolveSpy).toHaveBeenCalledWith('@kanyun/scope-skill', 'https://rush.zhenguanyu.com/');
+      expect(resolveSpy).toHaveBeenCalledWith(
+        '@kanyun/scope-skill',
+        'https://rush.zhenguanyu.com/',
+      );
     });
   });
 });
@@ -1668,13 +1795,11 @@ describe('SkillManager registry fallback from lock file', () => {
 
     // Mock the registry client to verify correct registry URL is used
     const { RegistryClient } = await import('./registry-client.js');
-    const getSkillInfoSpy = vi
-      .spyOn(RegistryClient.prototype, 'getSkillInfo')
-      .mockResolvedValue({
-        name: 'find-skills',
-        source_type: 'github',
-        source_url: 'https://github.com/vercel-labs/skills',
-      });
+    const getSkillInfoSpy = vi.spyOn(RegistryClient.prototype, 'getSkillInfo').mockResolvedValue({
+      name: 'find-skills',
+      source_type: 'github',
+      source_url: 'https://github.com/vercel-labs/skills',
+    });
 
     // Mock the full Git install chain (must return nested { parsed, repoUrl, ref })
     vi.spyOn(GitResolver.prototype, 'resolve').mockResolvedValue({
@@ -1733,13 +1858,11 @@ describe('SkillManager registry fallback from lock file', () => {
     );
 
     const { RegistryClient } = await import('./registry-client.js');
-    const getSkillInfoSpy = vi
-      .spyOn(RegistryClient.prototype, 'getSkillInfo')
-      .mockResolvedValue({
-        name: 'find-skills',
-        source_type: 'github',
-        source_url: 'https://github.com/vercel-labs/skills',
-      });
+    const getSkillInfoSpy = vi.spyOn(RegistryClient.prototype, 'getSkillInfo').mockResolvedValue({
+      name: 'find-skills',
+      source_type: 'github',
+      source_url: 'https://github.com/vercel-labs/skills',
+    });
 
     // Mock Git resolve (nested structure)
     vi.spyOn(GitResolver.prototype, 'resolve').mockResolvedValue({
@@ -1849,11 +1972,17 @@ describe('SkillManager resolveRegistryUrl', () => {
     ref: string,
     explicitRegistry?: string,
   ): Promise<string> => {
-    return (manager as unknown as Record<string, (...args: unknown[]) => Promise<string>>).resolveRegistryUrl(ref, explicitRegistry);
+    return (
+      manager as unknown as Record<string, (...args: unknown[]) => Promise<string>>
+    ).resolveRegistryUrl(ref, explicitRegistry);
   };
 
   it('should use explicit CLI override first', async () => {
-    const url = await callResolveRegistryUrl(skillManager, 'find-skills', 'https://custom.example.com/');
+    const url = await callResolveRegistryUrl(
+      skillManager,
+      'find-skills',
+      'https://custom.example.com/',
+    );
     expect(url).toBe('https://custom.example.com/');
   });
 
@@ -1959,10 +2088,7 @@ describe('SkillManager --registry auto-save to skills.json.registries', () => {
 
   it('should save custom registry URL to skills.json.registries on install', async () => {
     // Create initial skills.json
-    fs.writeFileSync(
-      path.join(tempDir, 'skills.json'),
-      JSON.stringify({ skills: {} }),
-    );
+    fs.writeFileSync(path.join(tempDir, 'skills.json'), JSON.stringify({ skills: {} }));
 
     const customRegistryUrl = 'https://private-registry.example.com/';
 
@@ -2004,10 +2130,7 @@ describe('SkillManager --registry auto-save to skills.json.registries', () => {
   });
 
   it('should not save git host URLs to skills.json.registries', async () => {
-    fs.writeFileSync(
-      path.join(tempDir, 'skills.json'),
-      JSON.stringify({ skills: {} }),
-    );
+    fs.writeFileSync(path.join(tempDir, 'skills.json'), JSON.stringify({ skills: {} }));
 
     const { RegistryClient } = await import('./registry-client.js');
     vi.spyOn(RegistryClient.prototype, 'getSkillInfo').mockResolvedValue({

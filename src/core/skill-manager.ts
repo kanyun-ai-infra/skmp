@@ -16,6 +16,7 @@ import {
   listDir,
   remove,
 } from '../utils/fs.js';
+import { parseGitUrl } from '../utils/git.js';
 import { logger } from '../utils/logger.js';
 import {
   getRegistryUrl,
@@ -33,7 +34,12 @@ import { CacheManager } from './cache-manager.js';
 import { ConfigLoader, DEFAULT_REGISTRIES } from './config-loader.js';
 import { GitResolver } from './git-resolver.js';
 import { HttpResolver } from './http-resolver.js';
-import { DEFAULT_EXCLUDE_FILES, Installer, type InstallMode, type InstallResult } from './installer.js';
+import {
+  DEFAULT_EXCLUDE_FILES,
+  Installer,
+  type InstallMode,
+  type InstallResult,
+} from './installer.js';
 import { LockManager } from './lock-manager.js';
 import { RegistryClient, RegistryError } from './registry-client.js';
 import { RegistryResolver } from './registry-resolver.js';
@@ -581,9 +587,7 @@ export class SkillManager {
         const client = new RegistryClient({ registry: url });
         await client.getSkillInfo(parsed.fullName);
         return url; // Found it
-      } catch {
-        continue; // Not on this registry
-      }
+      } catch {}
     }
 
     return getRegistryUrl(null); // PUBLIC_REGISTRY
@@ -1093,8 +1097,9 @@ export class SkillManager {
 
     // Update lock file (project mode only)
     if (!this.isGlobal) {
-      const lockSource = registryContext?.lockSource
-        ?? `${parsed.registry}:${parsed.owner}/${parsed.repo}${parsed.subPath ? `/${parsed.subPath}` : ''}`;
+      const lockSource =
+        registryContext?.lockSource ??
+        `${parsed.registry}:${parsed.owner}/${parsed.repo}${parsed.subPath ? `/${parsed.subPath}` : ''}`;
       this.lockManager.lockSkill(skillName, {
         source: lockSource,
         version: semanticVersion,
@@ -1476,10 +1481,15 @@ export class SkillManager {
 
     switch (source_type) {
       case 'github':
-      case 'gitlab':
-        // source_url is a full Git URL (includes ref and path)
-        // Reuse existing Git installation logic
-        return this.installToAgentsFromGit(source_url, targetAgents, optionsWithContext);
+      case 'gitlab': {
+        const gitRef = this.buildGitRefForWebPublished(
+          source_type,
+          source_url,
+          skillInfo.skill_path,
+          parsed,
+        );
+        return this.installToAgentsFromGit(gitRef, targetAgents, optionsWithContext);
+      }
 
       case 'oss_url':
       case 'custom_url':
@@ -1493,6 +1503,45 @@ export class SkillManager {
       default:
         throw new Error(`Unknown source_type: ${source_type}`);
     }
+  }
+
+  /**
+   * Build a Git ref for web-published github/gitlab skills.
+   *
+   * When `skillPath` is provided (multi-skill repo), constructs a shorthand ref
+   * like `github:owner/repo/skills/my-skill` so that only the sub-directory is
+   * cached and installed.
+   *
+   * Fallback: if `parseGitUrl` fails (non-standard URL), appends `#shortName`
+   * as a skill-name selector. The `#` fragment is extracted by
+   * `GitResolver.parseRef()` as `parsed.skillName`, then matched against
+   * SKILL.md `name` fields via `resolveSourcePath` / `discoverSkillsInDir`.
+   * This differs from the subPath approach (directory-based) but works because
+   * skill names typically match their directory basenames.
+   *
+   * Returns the raw `sourceUrl` when no `skillPath` is available.
+   */
+  private buildGitRefForWebPublished(
+    sourceType: string,
+    sourceUrl: string,
+    skillPath: string | undefined,
+    parsed: ReturnType<typeof parseSkillIdentifier>,
+  ): string {
+    if (!skillPath) {
+      return sourceUrl;
+    }
+
+    const urlParsed = parseGitUrl(sourceUrl);
+    if (urlParsed) {
+      return `${sourceType}:${urlParsed.owner}/${urlParsed.repo}/${skillPath}`;
+    }
+
+    const shortName = getShortName(parsed.fullName);
+    if (shortName) {
+      return `${sourceUrl}#${shortName}`;
+    }
+
+    return sourceUrl;
   }
 
   /**
