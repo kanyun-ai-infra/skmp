@@ -317,6 +317,8 @@ export interface SkillInfo {
   source_type?: SourceType;
   /** Source URL (only present for web-published skills) */
   source_url?: string;
+  /** Sub-path within the repository for multi-skill repos, e.g. "skills/accessibility" */
+  skill_path?: string;
   /** Publisher ID */
   publisher_id?: string;
   /** Creation timestamp */

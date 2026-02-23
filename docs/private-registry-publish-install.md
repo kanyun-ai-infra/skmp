@@ -1,8 +1,9 @@
 # Reskill 私域 Skill 发布与安装方案
 
-> 版本：v6  
-> 日期：2026-02-02  
-> 更新：适配页面发布功能（source_type 分支）
+> 版本：v7  
+> 日期：2026-02-22  
+> 更新：修复多技能仓库安装路径错误，新增 skill_path 支持  
+> 状态：accepted
 
 ---
 
@@ -274,7 +275,10 @@ reskill install @kanyun/planning-with-files@beta
         │    Use: reskill install @kanyun/planning-with-files"
         │
         └── 根据 source_type 分支安装：
-            ├── github/gitlab → Git clone source_url（解析 URL 获取 ref/path）
+            ├── github/gitlab → 构造 Git ref 安装
+            │   ├── 有 skill_path → 构造 `{source_type}:{owner}/{repo}/{skill_path}`
+            │   │   （只缓存子目录，安装为 skill_path 末段名称）
+            │   └── 无 skill_path → 使用 source_url 原值
             ├── oss_url/custom_url → 直接下载 source_url
             └── local → 下载 OSS: source_url
             │
@@ -449,23 +453,24 @@ To replace it, first remove the existing directory:
 
 ### 数据库
 
-#### skills 表（v6 新增字段）
+#### skills 表（v7 更新）
 
 | 字段          | 类型 | 默认值       | 说明                                                         |
 | ------------- | ---- | ------------ | ------------------------------------------------------------ |
 | `name`        | TEXT | —            | 主键，完整名称 `@kanyun/planning-with-files`                 |
 | `source_type` | TEXT | `'registry'` | 来源类型：`registry` / `github` / `gitlab` / `oss_url` / `custom_url` / `local` |
-| `source_url`  | TEXT | NULL         | 完整 URL（包含 ref 和 path），install 时解析                 |
+| `source_url`  | TEXT | NULL         | 仓库 URL，install 时解析                                     |
+| `skill_path`  | TEXT | NULL         | 技能在仓库中的子路径（v7 新增），如 `skills/accessibility`    |
 
 **数据示例：**
 
-| name                 | source_type | source_url                                                 |
-| -------------------- | ----------- | ---------------------------------------------------------- |
-| @kanyun/cli-skill    | registry    | NULL                                                       |
-| @kanyun/github-skill | github      | https://github.com/user/repo/tree/main/skills/my-skill     |
-| @kanyun/local-skill  | local       | local/@kanyun/local-skill.tgz                              |
+| name                 | source_type | source_url                                         | skill_path            |
+| -------------------- | ----------- | -------------------------------------------------- | --------------------- |
+| @kanyun/cli-skill    | registry    | NULL                                               | NULL                  |
+| @kanyun/github-skill | github      | https://github.com/user/repo                       | skills/my-skill       |
+| @kanyun/local-skill  | local       | local/@kanyun/local-skill.tgz                      | NULL                  |
 
-> **说明**：GitHub/GitLab URL 包含完整的 ref 和 path 信息，install 时通过 `GitResolver.parseGitUrlRef()` 解析。
+> **说明**：`source_url` 为仓库级 URL，`skill_path` 指向仓库内的具体技能目录。install 时组合为 `{source_type}:{owner}/{repo}/{skill_path}` 格式的 Git ref，由 `GitResolver.parseRef()` 解析。
 
 #### 其他表（无改动）
 
@@ -534,6 +539,14 @@ WHERE skill_name = '@kanyun/planning-with-files' AND version = '2.4.5';
 | **reskill CLI** | 复用 GitResolver.parseGitUrlRef() 解析 URL        | 小     |
 | **reskill CLI** | 复用 HttpResolver 处理 oss_url/custom_url 来源    | 小     |
 | **reskill CLI** | 新增 local 模式下载 OSS 固定路径                  | 小     |
+
+### 修复（v7 - 多技能仓库安装路径）
+
+| 组件            | 改动项                                                      | 工作量 |
+| --------------- | ----------------------------------------------------------- | ------ |
+| **reskill CLI** | `SkillInfo` 类型新增 `skill_path` 字段                      | 小     |
+| **reskill CLI** | `installFromWebPublished` 利用 `skill_path` 构造带 subPath 的 Git ref | 小     |
+| **reskill CLI** | 兜底：`parseGitUrl` 失败时退化为 `#skillName` 模式            | 小     |
 
 ---
 
@@ -604,9 +617,14 @@ reskill install @kanyun/planning-with-files
 │     ├── registry → 步骤 5              │
 │     └── 其他 → 步骤 4.1                │
 │                                        │
-│  4.1 页面发布分支（v6 新增）           │
+│  4.1 页面发布分支（v7 更新）           │
 │     ├── 有 @version → 报错 ❌          │
-│     └── github/gitlab → Git clone      │
+│     └── github/gitlab:                 │
+│         ├── 有 skill_path →            │
+│         │   构造 {type}:{owner}/{repo}/{skill_path}
+│         │   → 只缓存子目录             │
+│         └── 无 skill_path →            │
+│             使用 source_url 原值       │
 │         oss_url/custom_url → 下载 URL  │
 │         local → 下载 OSS               │
 │         → 跳到步骤 6                   │
@@ -660,7 +678,9 @@ INSTALL:
   │   → 解压
   │
   ├── source_type = 'github/gitlab':
-  │   → Git clone source_url (ref, path)
+  │   ├── 有 skill_path → 构造 {type}:{owner}/{repo}/{skill_path}
+  │   │   → 只缓存子目录，安装为 basename(skill_path)
+  │   └── 无 skill_path → Git clone source_url
   │
   ├── source_type = 'oss_url/custom_url':
   │   → 直接下载 source_url
