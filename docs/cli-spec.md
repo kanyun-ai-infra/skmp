@@ -150,6 +150,8 @@ reskill install github:user/skill1 github:user/skill2@v1.0.0 gitlab:team/skill3
 | `--all` | `false` | Install to all agents (implies `-y -g`) |
 | `-s, --skill <names...>` | - | Select specific skill(s) by name from a multi-skill repository (Git/HTTP only) |
 | `--list` | `false` | With a single repo ref: list available skills in the repository without installing |
+| `-r, --registry <url>` | - | Registry URL override for registry-based installs |
+| `-t, --token <token>` | - | Auth token for registry API requests (for CI/CD). Priority: `--token` > `RESKILL_TOKEN` env > `~/.reskillrc` |
 
 ### Multi-skill repository (`--skill`)
 

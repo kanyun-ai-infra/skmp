@@ -580,6 +580,9 @@ export class SkillManager {
     if (locked?.registry) return locked.registry;
 
     // Slow path: probe configured registries (skip git hosts)
+    // Note: token is intentionally NOT passed during probe to avoid leaking
+    // credentials to unrelated registries. Token is only used after the
+    // target registry is determined.
     const registries = this.config.getRegistries();
     for (const [name, url] of Object.entries(registries)) {
       if (this.isGitHostRegistry(name, url)) continue;
@@ -1261,7 +1264,7 @@ export class SkillManager {
     // Parse skill identifier and resolve registry URL once (single source of truth)
     const parsed = parseSkillIdentifier(ref);
     const registryUrl = await this.resolveRegistryUrl(ref, options.registry);
-    const client = new RegistryClient({ registry: registryUrl });
+    const client = new RegistryClient({ registry: registryUrl, token: options.token });
 
     // Query skill info to determine source_type
     let skillInfo: SkillInfo;
@@ -1287,7 +1290,7 @@ export class SkillManager {
 
     // 1. Resolve registry skill (pass pre-resolved registryUrl)
     logger.package(`Resolving ${ref} from registry...`);
-    const resolved = await this.registryResolver.resolve(ref, registryUrl);
+    const resolved = await this.registryResolver.resolve(ref, registryUrl, options.token);
     const {
       shortName,
       version,
@@ -1578,7 +1581,7 @@ export class SkillManager {
     const version = 'latest';
 
     // Download tarball via RegistryClient (handles auth + 302 redirect to signed URL)
-    const client = new RegistryClient({ registry: registryUrl });
+    const client = new RegistryClient({ registry: registryUrl, token: options.token });
     const { tarball } = await client.downloadSkill(parsed.fullName, version);
 
     logger.package(

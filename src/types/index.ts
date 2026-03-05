@@ -298,6 +298,8 @@ export interface InstallOptions {
   yes?: boolean;
   /** Registry URL override (for registry-based installs) */
   registry?: string;
+  /** Auth token for registry API requests (enables private skill access) */
+  token?: string;
   /** Registry context for web-published skills (carries registry name through Git/HTTP install) */
   registryContext?: RegistryInstallContext;
 }

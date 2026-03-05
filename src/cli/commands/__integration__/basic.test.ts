@@ -41,6 +41,13 @@ describe('CLI Integration: Version & Help', () => {
     expect(stdout).toContain('info');
     expect(stdout).toContain('outdated');
   });
+
+  it('should show --token option in install help', () => {
+    const { stdout, exitCode } = runCli('install --help');
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('--token');
+    expect(stdout).toContain('-t');
+  });
 });
 
 // ============================================================================

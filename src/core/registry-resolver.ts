@@ -100,6 +100,7 @@ export class RegistryResolver {
    *
    * @param ref - Skill reference (e.g., "@kanyun/planning-with-files@2.4.5" or "my-skill@latest")
    * @param overrideRegistryUrl - Optional registry URL override (bypasses scope-based lookup)
+   * @param token - Optional auth token for private skill access
    * @returns Resolved skill information including downloaded tarball
    *
    * @example
@@ -107,7 +108,7 @@ export class RegistryResolver {
    * console.log(result.shortName); // 'planning-with-files'
    * console.log(result.version); // '2.4.5'
    */
-  async resolve(ref: string, overrideRegistryUrl?: string): Promise<RegistryResolveResult> {
+  async resolve(ref: string, overrideRegistryUrl?: string, token?: string): Promise<RegistryResolveResult> {
     // 1. Parse skill identifier
     const parsed = parseSkillIdentifier(ref);
     const shortName = getShortName(parsed.fullName);
@@ -116,7 +117,7 @@ export class RegistryResolver {
     const registryUrl = overrideRegistryUrl || getRegistryUrl(parsed.scope);
 
     // 3. Create client and resolve version
-    const client = new RegistryClient({ registry: registryUrl });
+    const client = new RegistryClient({ registry: registryUrl, token });
     const version = await client.resolveVersion(parsed.fullName, parsed.version);
 
     // 4. Download tarball

@@ -146,11 +146,11 @@ describe('RegistryResolver', () => {
   // ====================================================================
 
   describe('resolve with overrideRegistryUrl', () => {
-    it('should accept an optional overrideRegistryUrl parameter', () => {
+    it('should accept optional overrideRegistryUrl and token parameters', () => {
       const resolver = new RegistryResolver();
-      // Verify the method signature accepts two parameters
+      // Verify the method signature accepts up to three parameters
       expect(resolver.resolve).toBeDefined();
-      expect(resolver.resolve.length).toBeLessThanOrEqual(2);
+      expect(resolver.resolve.length).toBeLessThanOrEqual(3);
     });
   });
 });

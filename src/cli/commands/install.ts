@@ -2,6 +2,7 @@ import * as p from '@clack/prompts';
 import chalk from 'chalk';
 import { Command } from 'commander';
 import { type AgentType, agents, detectInstalledAgents } from '../../core/agent-registry.js';
+import { AuthManager } from '../../core/auth-manager.js';
 import { ConfigLoader } from '../../core/config-loader.js';
 import type { InstallMode } from '../../core/installer.js';
 import { SkillManager } from '../../core/skill-manager.js';
@@ -25,6 +26,8 @@ interface InstallOptions {
   list?: boolean;
   /** Registry URL override for registry-based installs */
   registry?: string;
+  /** Auth token for registry API requests (overrides ~/.reskillrc and RESKILL_TOKEN) */
+  token?: string;
 }
 
 interface InstallContext {
@@ -388,6 +391,7 @@ async function installAllSkills(
         save: false, // Already in skills.json
         mode: installMode,
         registry: options.registry,
+        token: options.token,
       });
 
       const successCount = Array.from(results.values()).filter((r) => r.success).length;
@@ -455,6 +459,7 @@ async function installSingleSkill(
     save: options.save !== false && !installGlobally,
     mode: installMode,
     registry: options.registry,
+    token: options.token,
   });
 
   spinner.stop('Installation complete');
@@ -529,6 +534,7 @@ async function installMultiSkillFromRepo(
     save: ctx.options.save !== false && !installGlobally,
     mode: installMode,
     registry: ctx.options.registry,
+    token: ctx.options.token,
   });
 
   spinner.stop('Installation complete');
@@ -609,6 +615,7 @@ async function installMultipleSkills(
           force: options.force,
           save: options.save !== false && !installGlobally,
           registry: options.registry,
+          token: options.token,
           mode: installMode,
         },
       );
@@ -840,11 +847,21 @@ export const installCommand = new Command('install')
   )
   .option('--list', 'List available skills in the repository without installing')
   .option('-r, --registry <url>', 'Registry URL override for registry-based installs')
+  .option('-t, --token <token>', 'Auth token for registry API requests (for CI/CD)')
   .action(async (skills: string[], options: InstallOptions) => {
     // Handle --all flag implications
     if (options.all) {
       options.yes = true;
       options.global = true;
+    }
+
+    // Resolve auth token: --token flag > RESKILL_TOKEN env > ~/.reskillrc
+    if (!options.token) {
+      const authManager = new AuthManager();
+      const token = authManager.getToken(options.registry);
+      if (token) {
+        options.token = token;
+      }
     }
 
     // Create execution context

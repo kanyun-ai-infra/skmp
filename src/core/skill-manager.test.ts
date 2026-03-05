@@ -1678,8 +1678,8 @@ describe('SkillManager installToAgentsFromRegistry with source_type', () => {
 
       await manager.installToAgents('my-skill', ['cursor'], { registry: customRegistryUrl });
 
-      // Verify resolve was called with the custom registry URL
-      expect(resolveSpy).toHaveBeenCalledWith('my-skill', customRegistryUrl);
+      // Verify resolve was called with the custom registry URL (token is undefined)
+      expect(resolveSpy).toHaveBeenCalledWith('my-skill', customRegistryUrl, undefined);
     });
 
     it('should use options.registry for RegistryClient when querying skill info', async () => {
@@ -1754,9 +1754,104 @@ describe('SkillManager installToAgentsFromRegistry with source_type', () => {
 
       // resolve should receive the pre-resolved registry URL (not undefined)
       // because installToAgentsFromRegistry resolves the URL once and passes it down
+      // token is undefined when not provided
       expect(resolveSpy).toHaveBeenCalledWith(
         '@kanyun/scope-skill',
         'https://rush.zhenguanyu.com/',
+        undefined,
+      );
+    });
+
+    it('should pass token to RegistryResolver.resolve when provided in options', async () => {
+      const customRegistryUrl = 'https://custom-registry.example.com';
+      const authToken = 'test-jwt-token-123';
+
+      const { RegistryClient } = await import('./registry-client.js');
+      vi.spyOn(RegistryClient.prototype, 'getSkillInfo').mockResolvedValue({
+        name: 'my-skill',
+        source_type: 'registry',
+      });
+
+      // Mock RegistryResolver
+      const registryResolver = (manager as unknown as { registryResolver: RegistryResolver })
+        .registryResolver;
+      const resolveSpy = vi.spyOn(registryResolver, 'resolve').mockResolvedValue({
+        parsed: {
+          scope: null,
+          name: 'my-skill',
+          version: '1.0.0',
+          fullName: 'my-skill',
+        },
+        shortName: 'my-skill',
+        version: '1.0.0',
+        registryUrl: customRegistryUrl,
+        tarball: Buffer.from('mock tarball'),
+        integrity: 'sha256-mockhash',
+      });
+
+      const mockSkillDir = path.join(tempDir, 'mock-skill-token');
+      fs.mkdirSync(mockSkillDir, { recursive: true });
+      fs.writeFileSync(path.join(mockSkillDir, 'SKILL.md'), '# Skill');
+      vi.spyOn(registryResolver, 'extract').mockResolvedValue(mockSkillDir);
+
+      await manager.installToAgents('my-skill', ['cursor'], {
+        registry: customRegistryUrl,
+        token: authToken,
+      });
+
+      // Verify resolve was called with the token
+      expect(resolveSpy).toHaveBeenCalledWith('my-skill', customRegistryUrl, authToken);
+    });
+
+    it('should pass token to RegistryClient constructor when querying skill info', async () => {
+      const customRegistryUrl = 'https://custom-registry.example.com';
+      const authToken = 'test-jwt-token-456';
+
+      const registryClientModule = await import('./registry-client.js');
+      const constructorSpy = vi.fn();
+      const OriginalClient = registryClientModule.RegistryClient;
+
+      // Spy on constructor to capture the config (including token)
+      vi.spyOn(registryClientModule, 'RegistryClient').mockImplementation((config) => {
+        constructorSpy(config);
+        const instance = new OriginalClient(config);
+        vi.spyOn(instance, 'getSkillInfo').mockResolvedValue({
+          name: 'my-skill',
+          source_type: 'registry',
+        });
+        return instance;
+      });
+
+      // Mock RegistryResolver
+      const registryResolver = (manager as unknown as { registryResolver: RegistryResolver })
+        .registryResolver;
+      vi.spyOn(registryResolver, 'resolve').mockResolvedValue({
+        parsed: {
+          scope: null,
+          name: 'my-skill',
+          version: '1.0.0',
+          fullName: 'my-skill',
+        },
+        shortName: 'my-skill',
+        version: '1.0.0',
+        registryUrl: customRegistryUrl,
+        tarball: Buffer.from('mock tarball'),
+        integrity: 'sha256-mockhash',
+      });
+
+      const mockSkillDir = path.join(tempDir, 'mock-skill-token-client');
+      fs.mkdirSync(mockSkillDir, { recursive: true });
+      fs.writeFileSync(path.join(mockSkillDir, 'SKILL.md'), '# Skill');
+      vi.spyOn(registryResolver, 'extract').mockResolvedValue(mockSkillDir);
+
+      await manager.installToAgents('my-skill', ['cursor'], {
+        registry: customRegistryUrl,
+        token: authToken,
+      });
+
+      // Verify RegistryClient was constructed with the token
+      expect(constructorSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ registry: customRegistryUrl, token: authToken }),
       );
     });
   });
