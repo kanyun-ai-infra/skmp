@@ -870,20 +870,26 @@ The doctor command performs the following checks:
 | Node.js version | Verify Node.js >= 18.0.0 |
 | Git | Verify Git is installed |
 | Git authentication | Check for SSH keys or credential helper |
+| Registry auth | Check for `RESKILL_TOKEN` env var or `~/.reskillrc` token |
+| Environment vars | Report active reskill env vars (`RESKILL_TOKEN`, `RESKILL_REGISTRY`, `RESKILL_CACHE_DIR`) |
 
 **Directory Checks:**
 | Check | Description |
 |-------|-------------|
 | Cache directory | Show cache location and size |
 | skills.json | Verify configuration file exists and is valid |
-| skills.lock | Verify lock file is in sync with skills.json |
+| skills.lock | Verify lock file is in sync with skills.json and `lockfileVersion` is supported |
 | Installed skills | Check installed skills for issues |
+| Detected agents | Report agents detected on the system via `detectInstalledAgents()` |
 
 **Configuration Checks:**
 | Check | Description |
 |-------|-------------|
 | Registry conflict | Warn if `github` or `gitlab` registry names are overridden |
+| Invalid registry URL | Error if custom registry URL does not start with `http://` or `https://` |
 | Dangerous installDir | Error if installDir uses reserved paths (src, node_modules, etc.) |
+| Invalid installMode | Error if `defaults.installMode` is not `symlink` or `copy` |
+| Invalid publishRegistry | Warn if `defaults.publishRegistry` is not a valid URL |
 | Invalid agent | Warn for unknown agent types in targetAgents |
 | Invalid skill ref | Error for malformed skill references |
 | Version mismatch | Warn for monorepo skills with different versions |
@@ -893,6 +899,7 @@ The doctor command performs the following checks:
 |-------|-------------|
 | Network (github.com) | Test connectivity to GitHub |
 | Network (gitlab.com) | Test connectivity to GitLab |
+| Network (custom) | Test connectivity to custom registries and publishRegistry |
 
 ### Behavior
 
@@ -913,10 +920,13 @@ The doctor command performs the following checks:
 ✓ Node.js version          v22.0.0 (>=18.0.0 required)
 ✓ Git                      2.43.0
 ✓ Git authentication       SSH key found
+✓ Registry auth            ~/.reskillrc found
+✓ Environment vars         RESKILL_REGISTRY set
 ✓ Cache directory          ~/.reskill-cache (12.5 MB, 5 skills cached)
 ✓ skills.json              found (3 skills declared)
 ✓ skills.lock              in sync (3 skills locked)
 ✓ Installed skills         3 skills installed
+✓ Detected agents          3 detected: cursor, claude-code, windsurf
 ✓ Network (github.com)     reachable
 ✓ Network (gitlab.com)     reachable
 
@@ -932,15 +942,19 @@ All checks passed! reskill is ready to use.
 ✓ Git                      2.43.0
 ⚠ Git authentication       no SSH key or credential helper found
   → For private repos, add SSH key: ssh-keygen -t ed25519
+⚠ Registry auth            no token configured
+  → Run: reskill login (needed for publish and private skills)
+✓ Environment vars         none set
 ✓ Cache directory          ~/.reskill-cache (12.5 MB, 5 skills cached)
 ⚠ skills.json              not found
   → Run: reskill init
 ✓ skills.lock              n/a (no skills.json)
 ✓ Installed skills         none
+✓ Detected agents          1 detected: cursor
 ✓ Network (github.com)     reachable
 ✓ Network (gitlab.com)     reachable
 
-Found 2 warnings, but reskill should work
+Found 3 warnings, but reskill should work
 ```
 
 **With errors:**

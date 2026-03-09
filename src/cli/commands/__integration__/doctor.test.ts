@@ -106,6 +106,24 @@ describe('CLI Integration: doctor', () => {
       expect(stdout).toContain('reskill version');
       expect(exitCode).toBeLessThanOrEqual(1);
     });
+
+    it('should check registry auth status', () => {
+      const { stdout, exitCode } = runCli('doctor --skip-network', tempDir);
+      expect(stdout).toContain('Registry auth');
+      expect(exitCode).toBeLessThanOrEqual(1);
+    });
+
+    it('should check environment variables', () => {
+      const { stdout, exitCode } = runCli('doctor --skip-network', tempDir);
+      expect(stdout).toContain('Environment vars');
+      expect(exitCode).toBeLessThanOrEqual(1);
+    });
+
+    it('should check detected agents', () => {
+      const { stdout, exitCode } = runCli('doctor --skip-network', tempDir);
+      expect(stdout).toContain('Detected agents');
+      expect(exitCode).toBeLessThanOrEqual(1);
+    });
   });
 
   describe('configuration checks', () => {
@@ -282,6 +300,54 @@ description: Test skill
       expect(exitCode).toBe(1);
     });
 
+    it('should error on invalid installMode', () => {
+      fs.writeFileSync(
+        path.join(tempDir, 'skills.json'),
+        JSON.stringify({
+          skills: {},
+          defaults: {
+            installMode: 'invalid-mode',
+          },
+        }),
+      );
+
+      const { stdout, exitCode } = runCli('doctor --skip-network', tempDir);
+      expect(stdout).toContain('Invalid installMode');
+      expect(exitCode).toBe(1);
+    });
+
+    it('should warn on invalid publishRegistry URL', () => {
+      fs.writeFileSync(
+        path.join(tempDir, 'skills.json'),
+        JSON.stringify({
+          skills: {},
+          defaults: {
+            publishRegistry: 'not-a-url',
+          },
+        }),
+      );
+
+      const { stdout, exitCode } = runCli('doctor --skip-network', tempDir);
+      expect(stdout).toContain('Invalid publishRegistry');
+      expect(exitCode).toBeLessThanOrEqual(1);
+    });
+
+    it('should error on invalid registry URL format', () => {
+      fs.writeFileSync(
+        path.join(tempDir, 'skills.json'),
+        JSON.stringify({
+          skills: {},
+          registries: {
+            broken: 'not-a-url',
+          },
+        }),
+      );
+
+      const { stdout, exitCode } = runCli('doctor --skip-network', tempDir);
+      expect(stdout).toContain('Invalid registry URL');
+      expect(exitCode).toBe(1);
+    });
+
     it('should warn about monorepo version mismatch', () => {
       fs.writeFileSync(
         path.join(tempDir, 'skills.json'),
@@ -347,9 +413,12 @@ description: Test skill
       expect(checkNames).toContain('reskill version');
       expect(checkNames).toContain('Node.js version');
       expect(checkNames).toContain('Git');
+      expect(checkNames).toContain('Registry auth');
+      expect(checkNames).toContain('Environment vars');
       expect(checkNames).toContain('skills.json');
       expect(checkNames).toContain('skills.lock');
       expect(checkNames).toContain('Installed skills');
+      expect(checkNames).toContain('Detected agents');
     });
 
     it('should include hints in JSON output for issues', () => {
