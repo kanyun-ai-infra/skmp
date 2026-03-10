@@ -5,11 +5,12 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import chalk from 'chalk';
 import { Command } from 'commander';
-import { isValidAgentType } from '../../core/agent-registry.js';
-import { ConfigLoader } from '../../core/config-loader.js';
+import { detectInstalledAgents, isValidAgentType } from '../../core/agent-registry.js';
+import { AuthManager } from '../../core/auth-manager.js';
+import { ConfigLoader, DEFAULT_REGISTRIES } from '../../core/config-loader.js';
 import { GitResolver } from '../../core/git-resolver.js';
 import { HttpResolver } from '../../core/http-resolver.js';
-import { LockManager } from '../../core/lock-manager.js';
+import { LOCKFILE_VERSION, LockManager } from '../../core/lock-manager.js';
 import { SkillManager } from '../../core/skill-manager.js';
 import { logger } from '../../utils/logger.js';
 import { checkForUpdate } from '../../utils/update-notifier.js';
@@ -257,6 +258,98 @@ export function checkGitAuth(): CheckResult {
 }
 
 /**
+ * Valid install modes
+ *
+ * Must stay in sync with InstallMode type from installer.ts ('symlink' | 'copy').
+ * TypeScript literal union types are erased at runtime, so we maintain this list manually.
+ */
+const VALID_INSTALL_MODES = ['symlink', 'copy'];
+
+/**
+ * Check registry authentication status
+ *
+ * Verifies actual token availability, not just file existence.
+ * Uses AuthManager.getToken() which checks RESKILL_TOKEN env first,
+ * then reads ~/.reskillrc for the configured registry.
+ */
+export function checkAuthStatus(): CheckResult {
+  const hasEnvToken = !!process.env.RESKILL_TOKEN;
+
+  if (hasEnvToken) {
+    return {
+      name: 'Registry auth',
+      status: 'ok',
+      message: 'RESKILL_TOKEN set',
+    };
+  }
+
+  // Check if ~/.reskillrc has any valid tokens
+  const authManager = new AuthManager();
+  const configPath = authManager.getConfigPath();
+
+  if (!existsSync(configPath)) {
+    return {
+      name: 'Registry auth',
+      status: 'warn',
+      message: 'no token configured',
+      hint: 'Run: reskill login (needed for publish and private skills)',
+    };
+  }
+
+  // File exists — check if it actually contains a token for any registry
+  const hasToken = authManager.hasToken();
+  if (hasToken) {
+    return {
+      name: 'Registry auth',
+      status: 'ok',
+      message: 'token configured via ~/.reskillrc',
+    };
+  }
+
+  return {
+    name: 'Registry auth',
+    status: 'warn',
+    message: '~/.reskillrc exists but no token found for current registry',
+    hint: 'Run: reskill login (needed for publish and private skills)',
+  };
+}
+
+/**
+ * Check environment variables used by reskill
+ *
+ * Security: Only report variable names, never values.
+ * RESKILL_TOKEN contains a secret and must not be displayed.
+ */
+export function checkEnvVars(): CheckResult {
+  // Only collect names, never values (RESKILL_TOKEN is a secret)
+  const vars: string[] = [];
+
+  if (process.env.RESKILL_TOKEN) {
+    vars.push('RESKILL_TOKEN');
+  }
+  if (process.env.RESKILL_REGISTRY) {
+    vars.push('RESKILL_REGISTRY');
+  }
+  if (process.env.RESKILL_CACHE_DIR) {
+    vars.push('RESKILL_CACHE_DIR');
+  }
+
+  if (vars.length === 0) {
+    return {
+      name: 'Environment vars',
+      status: 'ok',
+      message: 'none set',
+    };
+  }
+
+  return {
+    name: 'Environment vars',
+    status: 'ok',
+    message: `${vars.join(', ')} set`,
+  };
+}
+
+/**
  * Check cache directory
  */
 export function checkCacheDir(): CheckResult {
@@ -366,13 +459,23 @@ export function checkRegistryConflicts(cwd: string): CheckResult[] {
     const config = configLoader.load();
     const registries = config.registries || {};
 
-    for (const name of Object.keys(registries)) {
+    for (const [name, url] of Object.entries(registries)) {
       if (RESERVED_REGISTRIES.includes(name.toLowerCase())) {
         results.push({
           name: 'Registry conflict',
           status: 'warn',
           message: `"${name}" overrides built-in registry`,
           hint: 'Consider using a different name for custom registries',
+        });
+      }
+
+      // Validate URL format
+      if (typeof url === 'string' && !/^https?:\/\//.test(url)) {
+        results.push({
+          name: 'Invalid registry URL',
+          status: 'error',
+          message: `"${name}": "${url}" is not a valid URL`,
+          hint: 'Registry URLs must start with http:// or https://',
         });
       }
     }
@@ -419,6 +522,72 @@ export function checkInstallDir(cwd: string): CheckResult | null {
         status: 'error',
         message: `"${installDir}" contains path traversal`,
         hint: 'Use a simple directory name without ".."',
+      };
+    }
+  } catch {
+    // Ignore parse errors
+  }
+
+  return null;
+}
+
+/**
+ * Check for invalid installMode configuration
+ */
+export function checkInstallMode(cwd: string): CheckResult | null {
+  const configLoader = new ConfigLoader(cwd);
+
+  if (!configLoader.exists()) {
+    return null;
+  }
+
+  try {
+    const defaults = configLoader.getDefaults();
+    const installMode = defaults.installMode;
+
+    if (!installMode) {
+      return null;
+    }
+
+    if (!VALID_INSTALL_MODES.includes(installMode)) {
+      return {
+        name: 'Invalid installMode',
+        status: 'error',
+        message: `"${installMode}" is not a valid install mode`,
+        hint: 'Valid values: symlink, copy',
+      };
+    }
+  } catch {
+    // Ignore parse errors
+  }
+
+  return null;
+}
+
+/**
+ * Check for invalid publishRegistry configuration
+ */
+export function checkPublishRegistry(cwd: string): CheckResult | null {
+  const configLoader = new ConfigLoader(cwd);
+
+  if (!configLoader.exists()) {
+    return null;
+  }
+
+  try {
+    const defaults = configLoader.getDefaults();
+    const publishRegistry = defaults.publishRegistry;
+
+    if (!publishRegistry) {
+      return null;
+    }
+
+    if (!/^https?:\/\//.test(publishRegistry)) {
+      return {
+        name: 'Invalid publishRegistry',
+        status: 'warn',
+        message: `"${publishRegistry}" is not a valid URL`,
+        hint: 'publishRegistry must start with http:// or https://',
       };
     }
   } catch {
@@ -620,6 +789,18 @@ export function checkSkillsLock(cwd: string): CheckResult {
     };
   }
 
+  // Check lockfile version compatibility before sync check
+  // If version is unsupported, sync results would be meaningless
+  const lockData = lockManager.load();
+  if (lockData.lockfileVersion !== LOCKFILE_VERSION) {
+    return {
+      name: 'skills.lock',
+      status: 'warn',
+      message: `unsupported lockfile version: ${lockData.lockfileVersion}`,
+      hint: 'Run: reskill install to regenerate',
+    };
+  }
+
   // Check if lock is in sync with config
   const configSkills = configLoader.getSkills();
   const lockedSkills = lockManager.getAll();
@@ -772,6 +953,92 @@ export function checkInstalledSkills(cwd: string): CheckResult[] {
 }
 
 /**
+ * Check detected agents
+ */
+export async function checkDetectedAgents(): Promise<CheckResult> {
+  try {
+    const installed = await detectInstalledAgents();
+
+    if (installed.length === 0) {
+      return {
+        name: 'Detected agents',
+        status: 'ok',
+        message: 'none detected',
+      };
+    }
+
+    return {
+      name: 'Detected agents',
+      status: 'ok',
+      message: `${installed.length} detected: ${installed.join(', ')}`,
+    };
+  } catch {
+    return {
+      name: 'Detected agents',
+      status: 'warn',
+      message: 'detection failed',
+    };
+  }
+}
+
+/**
+ * Normalize a URL to its origin for comparison.
+ * Handles trailing slashes and case differences (e.g., GITHUB.COM → github.com).
+ */
+function normalizeUrlOrigin(url: string): string {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return url;
+  }
+}
+
+/**
+ * Get custom registry URLs for network checks
+ *
+ * Reads registries from skills.json and publishRegistry,
+ * excluding built-in github.com/gitlab.com and deduplicating.
+ */
+export function getCustomRegistryUrls(cwd: string): string[] {
+  const urls = new Set<string>();
+  const builtinOrigins = new Set(
+    Object.values(DEFAULT_REGISTRIES).map((u) => normalizeUrlOrigin(u)),
+  );
+
+  try {
+    const configLoader = new ConfigLoader(cwd);
+    if (!configLoader.exists()) {
+      return [];
+    }
+
+    // Collect custom registry URLs
+    const config = configLoader.load();
+    const registries = config.registries || {};
+    for (const url of Object.values(registries)) {
+      if (
+        typeof url === 'string' &&
+        /^https?:\/\//.test(url) &&
+        !builtinOrigins.has(normalizeUrlOrigin(url))
+      ) {
+        urls.add(url);
+      }
+    }
+
+    // Collect publishRegistry
+    const defaults = configLoader.getDefaults();
+    if (defaults.publishRegistry && /^https?:\/\//.test(defaults.publishRegistry)) {
+      if (!builtinOrigins.has(normalizeUrlOrigin(defaults.publishRegistry))) {
+        urls.add(defaults.publishRegistry);
+      }
+    }
+  } catch {
+    // Ignore errors
+  }
+
+  return [...urls];
+}
+
+/**
  * Check network connectivity
  */
 export async function checkNetwork(host: string): Promise<CheckResult> {
@@ -840,27 +1107,42 @@ export async function runDoctorChecks(options: {
   const { cwd, packageName, packageVersion, skipNetwork, skipConfigChecks } = options;
   const results: CheckResult[] = [];
 
-  // Version checks
+  // Environment checks
   results.push(await checkReskillVersion(packageVersion, packageName));
   results.push(checkNodeVersion());
   results.push(checkGitVersion());
   results.push(checkGitAuth());
+  results.push(checkAuthStatus());
+  results.push(checkEnvVars());
 
   // Directory checks
   results.push(checkCacheDir());
   results.push(checkSkillsJson(cwd));
   results.push(checkSkillsLock(cwd));
   results.push(...checkInstalledSkills(cwd));
+  results.push(await checkDetectedAgents());
 
   // Deep config checks (can be skipped for faster checks)
   if (!skipConfigChecks) {
-    // Registry conflicts
+    // Registry conflicts + URL validation
     results.push(...checkRegistryConflicts(cwd));
 
     // installDir validation
     const installDirCheck = checkInstallDir(cwd);
     if (installDirCheck) {
       results.push(installDirCheck);
+    }
+
+    // installMode validation
+    const installModeCheck = checkInstallMode(cwd);
+    if (installModeCheck) {
+      results.push(installModeCheck);
+    }
+
+    // publishRegistry validation
+    const publishRegistryCheck = checkPublishRegistry(cwd);
+    if (publishRegistryCheck) {
+      results.push(publishRegistryCheck);
     }
 
     // targetAgents validation
@@ -877,6 +1159,12 @@ export async function runDoctorChecks(options: {
   if (!skipNetwork) {
     results.push(await checkNetwork('https://github.com'));
     results.push(await checkNetwork('https://gitlab.com'));
+
+    // Custom registry connectivity
+    const customUrls = getCustomRegistryUrls(cwd);
+    for (const url of customUrls) {
+      results.push(await checkNetwork(url));
+    }
   }
 
   return results;

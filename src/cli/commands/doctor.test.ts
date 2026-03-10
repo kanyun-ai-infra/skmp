@@ -5,14 +5,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   type CheckResult,
   type CheckStatus,
+  checkAuthStatus,
   checkCacheDir,
+  checkDetectedAgents,
+  checkEnvVars,
   checkGitAuth,
   checkGitVersion,
   checkInstallDir,
+  checkInstallMode,
   checkInstalledSkills,
   checkMonorepoVersions,
   checkNetwork,
   checkNodeVersion,
+  checkPublishRegistry,
   checkRegistryConflicts,
   checkReskillVersion,
   checkSkillRefs,
@@ -22,6 +27,7 @@ import {
   countCachedSkills,
   execCommand,
   formatBytes,
+  getCustomRegistryUrls,
   getDirSize,
   getStatusIcon,
   printResult,
@@ -229,6 +235,95 @@ describe('doctor checks', () => {
     });
   });
 
+  describe('checkAuthStatus', () => {
+    let savedToken: string | undefined;
+
+    beforeEach(() => {
+      savedToken = process.env.RESKILL_TOKEN;
+    });
+
+    afterEach(() => {
+      if (savedToken !== undefined) {
+        process.env.RESKILL_TOKEN = savedToken;
+      } else {
+        delete process.env.RESKILL_TOKEN;
+      }
+    });
+
+    it('should return ok when RESKILL_TOKEN is set', () => {
+      process.env.RESKILL_TOKEN = 'test-token-123';
+      const result = checkAuthStatus();
+      expect(result.name).toBe('Registry auth');
+      expect(result.status).toBe('ok');
+      expect(result.message).toContain('RESKILL_TOKEN');
+    });
+
+    it('should return a valid check result', () => {
+      delete process.env.RESKILL_TOKEN;
+      const result = checkAuthStatus();
+      expect(result.name).toBe('Registry auth');
+      expect(['ok', 'warn']).toContain(result.status);
+    });
+  });
+
+  describe('checkEnvVars', () => {
+    let savedToken: string | undefined;
+    let savedRegistry: string | undefined;
+    let savedCacheDir: string | undefined;
+
+    beforeEach(() => {
+      savedToken = process.env.RESKILL_TOKEN;
+      savedRegistry = process.env.RESKILL_REGISTRY;
+      savedCacheDir = process.env.RESKILL_CACHE_DIR;
+    });
+
+    afterEach(() => {
+      if (savedToken !== undefined) {
+        process.env.RESKILL_TOKEN = savedToken;
+      } else {
+        delete process.env.RESKILL_TOKEN;
+      }
+      if (savedRegistry !== undefined) {
+        process.env.RESKILL_REGISTRY = savedRegistry;
+      } else {
+        delete process.env.RESKILL_REGISTRY;
+      }
+      if (savedCacheDir !== undefined) {
+        process.env.RESKILL_CACHE_DIR = savedCacheDir;
+      } else {
+        delete process.env.RESKILL_CACHE_DIR;
+      }
+    });
+
+    it('should return ok with "none set" when no env vars', () => {
+      delete process.env.RESKILL_TOKEN;
+      delete process.env.RESKILL_REGISTRY;
+      delete process.env.RESKILL_CACHE_DIR;
+      const result = checkEnvVars();
+      expect(result.name).toBe('Environment vars');
+      expect(result.status).toBe('ok');
+      expect(result.message).toBe('none set');
+    });
+
+    it('should list set env vars', () => {
+      process.env.RESKILL_REGISTRY = 'https://example.com';
+      delete process.env.RESKILL_TOKEN;
+      delete process.env.RESKILL_CACHE_DIR;
+      const result = checkEnvVars();
+      expect(result.status).toBe('ok');
+      expect(result.message).toContain('RESKILL_REGISTRY');
+    });
+
+    it('should list multiple env vars', () => {
+      process.env.RESKILL_TOKEN = 'tok';
+      process.env.RESKILL_REGISTRY = 'https://example.com';
+      delete process.env.RESKILL_CACHE_DIR;
+      const result = checkEnvVars();
+      expect(result.message).toContain('RESKILL_TOKEN');
+      expect(result.message).toContain('RESKILL_REGISTRY');
+    });
+  });
+
   describe('checkSkillsJson', () => {
     let testDir: string;
 
@@ -391,6 +486,37 @@ describe('doctor checks', () => {
       expect(result.status).toBe('warn');
       expect(result.message).toContain('out of sync');
       expect(result.message).toContain('missing');
+    });
+
+    it('should return warn when lockfileVersion is unsupported', () => {
+      writeFileSync(
+        join(testDir, 'skills.json'),
+        JSON.stringify({
+          skills: {
+            'test-skill': 'github:user/repo@v1.0.0',
+          },
+        }),
+      );
+      writeFileSync(
+        join(testDir, 'skills.lock'),
+        JSON.stringify({
+          lockfileVersion: 999,
+          skills: {
+            'test-skill': {
+              source: 'github:user/repo',
+              version: 'v1.0.0',
+              ref: 'v1.0.0',
+              resolved: 'https://github.com/user/repo',
+              commit: 'abc123',
+              installedAt: new Date().toISOString(),
+            },
+          },
+        }),
+      );
+      const result = checkSkillsLock(testDir);
+      expect(result.status).toBe('warn');
+      expect(result.message).toContain('unsupported lockfile version');
+      expect(result.message).toContain('999');
     });
 
     it('should return warn when skills.lock has extra skills', () => {
@@ -701,6 +827,39 @@ describe('checkRegistryConflicts', () => {
     const results = checkRegistryConflicts(testDir);
     expect(results).toEqual([]);
   });
+
+  it('should error for invalid registry URL format', () => {
+    writeFileSync(
+      join(testDir, 'skills.json'),
+      JSON.stringify({
+        skills: {},
+        registries: {
+          broken: 'not-a-valid-url',
+        },
+      }),
+    );
+    const results = checkRegistryConflicts(testDir);
+    expect(results.length).toBe(1);
+    expect(results[0].status).toBe('error');
+    expect(results[0].name).toBe('Invalid registry URL');
+    expect(results[0].message).toContain('broken');
+  });
+
+  it('should report both conflict and invalid URL', () => {
+    writeFileSync(
+      join(testDir, 'skills.json'),
+      JSON.stringify({
+        skills: {},
+        registries: {
+          github: 'not-a-url',
+        },
+      }),
+    );
+    const results = checkRegistryConflicts(testDir);
+    expect(results.length).toBe(2);
+    expect(results.some((r) => r.name === 'Registry conflict')).toBe(true);
+    expect(results.some((r) => r.name === 'Invalid registry URL')).toBe(true);
+  });
 });
 
 describe('checkInstallDir', () => {
@@ -779,6 +938,225 @@ describe('checkInstallDir', () => {
     expect(result).not.toBeNull();
     expect(result?.status).toBe('error');
     expect(result?.message).toContain('path traversal');
+  });
+});
+
+describe('checkInstallMode', () => {
+  let testDir: string;
+
+  beforeEach(() => {
+    testDir = join(tmpdir(), `doctor-installmode-test-${Date.now()}`);
+    mkdirSync(testDir, { recursive: true });
+  });
+
+  afterEach(() => {
+    if (existsSync(testDir)) {
+      rmSync(testDir, { recursive: true, force: true });
+    }
+  });
+
+  it('should return null when no skills.json exists', () => {
+    const result = checkInstallMode(testDir);
+    expect(result).toBeNull();
+  });
+
+  it('should return null when no installMode is set', () => {
+    writeFileSync(join(testDir, 'skills.json'), JSON.stringify({ skills: {} }));
+    const result = checkInstallMode(testDir);
+    expect(result).toBeNull();
+  });
+
+  it('should return null for valid installMode "symlink"', () => {
+    writeFileSync(
+      join(testDir, 'skills.json'),
+      JSON.stringify({
+        skills: {},
+        defaults: { installMode: 'symlink' },
+      }),
+    );
+    const result = checkInstallMode(testDir);
+    expect(result).toBeNull();
+  });
+
+  it('should return null for valid installMode "copy"', () => {
+    writeFileSync(
+      join(testDir, 'skills.json'),
+      JSON.stringify({
+        skills: {},
+        defaults: { installMode: 'copy' },
+      }),
+    );
+    const result = checkInstallMode(testDir);
+    expect(result).toBeNull();
+  });
+
+  it('should error for invalid installMode', () => {
+    writeFileSync(
+      join(testDir, 'skills.json'),
+      JSON.stringify({
+        skills: {},
+        defaults: { installMode: 'link' },
+      }),
+    );
+    const result = checkInstallMode(testDir);
+    expect(result).not.toBeNull();
+    expect(result?.status).toBe('error');
+    expect(result?.message).toContain('link');
+    expect(result?.hint).toContain('symlink');
+    expect(result?.hint).toContain('copy');
+  });
+});
+
+describe('checkPublishRegistry', () => {
+  let testDir: string;
+
+  beforeEach(() => {
+    testDir = join(tmpdir(), `doctor-pubreg-test-${Date.now()}`);
+    mkdirSync(testDir, { recursive: true });
+  });
+
+  afterEach(() => {
+    if (existsSync(testDir)) {
+      rmSync(testDir, { recursive: true, force: true });
+    }
+  });
+
+  it('should return null when no skills.json exists', () => {
+    const result = checkPublishRegistry(testDir);
+    expect(result).toBeNull();
+  });
+
+  it('should return null when no publishRegistry is set', () => {
+    writeFileSync(join(testDir, 'skills.json'), JSON.stringify({ skills: {} }));
+    const result = checkPublishRegistry(testDir);
+    expect(result).toBeNull();
+  });
+
+  it('should return null for valid https publishRegistry', () => {
+    writeFileSync(
+      join(testDir, 'skills.json'),
+      JSON.stringify({
+        skills: {},
+        defaults: { publishRegistry: 'https://registry.example.com' },
+      }),
+    );
+    const result = checkPublishRegistry(testDir);
+    expect(result).toBeNull();
+  });
+
+  it('should warn for invalid publishRegistry URL', () => {
+    writeFileSync(
+      join(testDir, 'skills.json'),
+      JSON.stringify({
+        skills: {},
+        defaults: { publishRegistry: 'not-a-url' },
+      }),
+    );
+    const result = checkPublishRegistry(testDir);
+    expect(result).not.toBeNull();
+    expect(result?.status).toBe('warn');
+    expect(result?.message).toContain('not-a-url');
+  });
+});
+
+describe('checkDetectedAgents', () => {
+  it('should return a valid check result', async () => {
+    const result = await checkDetectedAgents();
+    expect(result.name).toBe('Detected agents');
+    expect(result.status).toBe('ok');
+    // Should contain either "none detected" or "N detected: ..."
+    expect(result.message).toMatch(/detected/);
+  });
+});
+
+describe('getCustomRegistryUrls', () => {
+  let testDir: string;
+
+  beforeEach(() => {
+    testDir = join(tmpdir(), `doctor-customreg-test-${Date.now()}`);
+    mkdirSync(testDir, { recursive: true });
+  });
+
+  afterEach(() => {
+    if (existsSync(testDir)) {
+      rmSync(testDir, { recursive: true, force: true });
+    }
+  });
+
+  it('should return empty array when no skills.json exists', () => {
+    const urls = getCustomRegistryUrls(testDir);
+    expect(urls).toEqual([]);
+  });
+
+  it('should return empty array when only built-in registries', () => {
+    writeFileSync(
+      join(testDir, 'skills.json'),
+      JSON.stringify({
+        skills: {},
+        registries: {
+          github: 'https://github.com',
+          gitlab: 'https://gitlab.com',
+        },
+      }),
+    );
+    const urls = getCustomRegistryUrls(testDir);
+    expect(urls).toEqual([]);
+  });
+
+  it('should return custom registry URLs', () => {
+    writeFileSync(
+      join(testDir, 'skills.json'),
+      JSON.stringify({
+        skills: {},
+        registries: {
+          internal: 'https://gitlab.company.com',
+        },
+      }),
+    );
+    const urls = getCustomRegistryUrls(testDir);
+    expect(urls).toEqual(['https://gitlab.company.com']);
+  });
+
+  it('should include publishRegistry', () => {
+    writeFileSync(
+      join(testDir, 'skills.json'),
+      JSON.stringify({
+        skills: {},
+        defaults: { publishRegistry: 'https://my-registry.com' },
+      }),
+    );
+    const urls = getCustomRegistryUrls(testDir);
+    expect(urls).toContain('https://my-registry.com');
+  });
+
+  it('should deduplicate URLs', () => {
+    writeFileSync(
+      join(testDir, 'skills.json'),
+      JSON.stringify({
+        skills: {},
+        registries: {
+          internal: 'https://my-registry.com',
+        },
+        defaults: { publishRegistry: 'https://my-registry.com' },
+      }),
+    );
+    const urls = getCustomRegistryUrls(testDir);
+    expect(urls.length).toBe(1);
+  });
+
+  it('should skip invalid URLs', () => {
+    writeFileSync(
+      join(testDir, 'skills.json'),
+      JSON.stringify({
+        skills: {},
+        registries: {
+          broken: 'not-a-url',
+          valid: 'https://valid.example.com',
+        },
+      }),
+    );
+    const urls = getCustomRegistryUrls(testDir);
+    expect(urls).toEqual(['https://valid.example.com']);
   });
 });
 
@@ -1120,18 +1498,21 @@ describe('runDoctorChecks', () => {
       skipConfigChecks: true,
     });
 
-    // Should have 8 basic checks when network and config checks are skipped
-    expect(results.length).toBe(8);
+    // Should have 11 basic checks when network and config checks are skipped
+    expect(results.length).toBe(11);
 
     const checkNames = results.map((r) => r.name);
     expect(checkNames).toContain('reskill version');
     expect(checkNames).toContain('Node.js version');
     expect(checkNames).toContain('Git');
     expect(checkNames).toContain('Git authentication');
+    expect(checkNames).toContain('Registry auth');
+    expect(checkNames).toContain('Environment vars');
     expect(checkNames).toContain('Cache directory');
     expect(checkNames).toContain('skills.json');
     expect(checkNames).toContain('skills.lock');
     expect(checkNames).toContain('Installed skills');
+    expect(checkNames).toContain('Detected agents');
   });
 
   it(
@@ -1145,8 +1526,8 @@ describe('runDoctorChecks', () => {
         skipConfigChecks: true,
       });
 
-      // Should have 10 checks with network
-      expect(results.length).toBe(10);
+      // Should have 13 checks with network
+      expect(results.length).toBe(13);
 
       const checkNames = results.map((r) => r.name);
       expect(checkNames.some((n) => n.includes('github.com'))).toBe(true);
