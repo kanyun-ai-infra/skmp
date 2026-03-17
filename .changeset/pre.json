@@ -4,5 +4,8 @@
   "initialVersions": {
     "reskill": "1.15.0"
   },
-  "changesets": []
+  "changesets": [
+    "chinese-pattern-detection",
+    "content-scanner"
+  ]
 }
