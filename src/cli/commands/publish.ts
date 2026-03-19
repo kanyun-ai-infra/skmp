@@ -26,6 +26,7 @@ import {
 import { logger } from '../../utils/logger.js';
 import { resolveRegistry } from '../../utils/registry.js';
 import { buildFullSkillName, getScopeForRegistry } from '../../utils/registry-scope.js';
+import { normalizeGroupPath, validateGroupPath } from './group.js';
 
 // ============================================================================
 // Types
@@ -468,6 +469,7 @@ async function publishAction(skillPath: string, options: PublishOptions): Promis
   const absolutePath = path.resolve(skillPath);
   // Use cwd() as project root to find skills.json, not the skill path
   const registry = resolveRegistry(options.registry, process.cwd());
+  let normalizedGroupPath: string | undefined;
 
   // Validate registry is not a blocked public registry
   validateRegistry(registry);
@@ -476,6 +478,15 @@ async function publishAction(skillPath: string, options: PublishOptions): Promis
   if (!fs.existsSync(absolutePath)) {
     logger.error(`Directory not found: ${skillPath}`);
     process.exit(1);
+  }
+
+  if (options.group) {
+    normalizedGroupPath = normalizeGroupPath(options.group);
+    const validation = validateGroupPath(normalizedGroupPath);
+    if (!validation.valid) {
+      logger.error(validation.error);
+      process.exit(1);
+    }
   }
 
   const validator = new SkillValidator();
@@ -582,9 +593,9 @@ async function publishAction(skillPath: string, options: PublishOptions): Promis
     displayMetadata(skill);
 
     // Display group info
-    if (options.group) {
+    if (normalizedGroupPath) {
       logger.newline();
-      logger.log(`Group: ${options.group}`);
+      logger.log(`Group: ${normalizedGroupPath}`);
     }
 
     // 8. Dry run mode ends here
@@ -637,7 +648,7 @@ async function publishAction(skillPath: string, options: PublishOptions): Promis
 
       const result = await client.publish(skillName, payload, absolutePath, {
         tag: options.tag,
-        groupPath: options.group,
+        groupPath: normalizedGroupPath,
       });
 
       if (!result.success || !result.data) {

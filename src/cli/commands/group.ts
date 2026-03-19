@@ -45,7 +45,7 @@ interface GroupDeleteOptions extends GroupCommandOptions {
 }
 
 interface MemberAddOptions extends GroupCommandOptions {
-  role?: GroupRole;
+  role?: string;
 }
 
 // ============================================================================

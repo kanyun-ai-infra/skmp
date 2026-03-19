@@ -745,7 +745,8 @@ export class RegistryClient {
     dryRun = false,
   ): Promise<{ deleted?: boolean; affected_skills?: number }> {
     const params = dryRun ? '?dry_run=true' : '';
-    const url = `${this.getApiBase()}/skill-groups/${groupId}${params}`;
+    const encodedGroupId = encodeURIComponent(groupId);
+    const url = `${this.getApiBase()}/skill-groups/${encodedGroupId}${params}`;
 
     const response = await fetch(url, {
       method: 'DELETE',
@@ -774,7 +775,8 @@ export class RegistryClient {
    * @returns Array of members
    */
   async listGroupMembers(groupId: string): Promise<GroupMember[]> {
-    const url = `${this.getApiBase()}/skill-groups/${groupId}/members`;
+    const encodedGroupId = encodeURIComponent(groupId);
+    const url = `${this.getApiBase()}/skill-groups/${encodedGroupId}/members`;
 
     const response = await fetch(url, {
       method: 'GET',
@@ -806,7 +808,8 @@ export class RegistryClient {
     userIds: string[],
     role: GroupRole = 'developer',
   ): Promise<void> {
-    const url = `${this.getApiBase()}/skill-groups/${groupId}/members`;
+    const encodedGroupId = encodeURIComponent(groupId);
+    const url = `${this.getApiBase()}/skill-groups/${encodedGroupId}/members`;
 
     const response = await fetch(url, {
       method: 'POST',
@@ -835,7 +838,8 @@ export class RegistryClient {
    */
   async removeGroupMember(groupId: string, userId: string): Promise<void> {
     const params = new URLSearchParams({ user_id: userId });
-    const url = `${this.getApiBase()}/skill-groups/${groupId}/members?${params.toString()}`;
+    const encodedGroupId = encodeURIComponent(groupId);
+    const url = `${this.getApiBase()}/skill-groups/${encodedGroupId}/members?${params.toString()}`;
 
     const response = await fetch(url, {
       method: 'DELETE',
@@ -864,7 +868,8 @@ export class RegistryClient {
     userId: string,
     role: GroupRole,
   ): Promise<void> {
-    const url = `${this.getApiBase()}/skill-groups/${groupId}/members`;
+    const encodedGroupId = encodeURIComponent(groupId);
+    const url = `${this.getApiBase()}/skill-groups/${encodedGroupId}/members`;
 
     const response = await fetch(url, {
       method: 'PATCH',

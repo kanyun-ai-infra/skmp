@@ -1596,6 +1596,20 @@ describe('RegistryClient', () => {
         expect.objectContaining({ method: 'DELETE' }),
       );
     });
+
+    it('should URL-encode group id in path segment', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ data: { deleted: true } }),
+      });
+
+      await client.deleteGroup('group/with space');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        `${testRegistry}/api/skill-groups/group%2Fwith%20space`,
+        expect.objectContaining({ method: 'DELETE' }),
+      );
+    });
   });
 
   describe('listGroupMembers', () => {
@@ -1615,6 +1629,20 @@ describe('RegistryClient', () => {
       expect(result).toEqual(mockMembers);
       expect(mockFetch).toHaveBeenCalledWith(
         `${testRegistry}/api/skill-groups/g1/members`,
+        expect.objectContaining({ method: 'GET' }),
+      );
+    });
+
+    it('should URL-encode group id in path segment', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ data: [] }),
+      });
+
+      await client.listGroupMembers('group/with space');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        `${testRegistry}/api/skill-groups/group%2Fwith%20space/members`,
         expect.objectContaining({ method: 'GET' }),
       );
     });
@@ -1654,6 +1682,22 @@ describe('RegistryClient', () => {
         }),
       );
     });
+
+    it('should URL-encode group id in path segment', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ data: {} }),
+      });
+
+      await client.addGroupMembers('group/with space', ['u1']);
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        `${testRegistry}/api/skill-groups/group%2Fwith%20space/members`,
+        expect.objectContaining({
+          method: 'POST',
+        }),
+      );
+    });
   });
 
   describe('removeGroupMember', () => {
@@ -1684,6 +1728,20 @@ describe('RegistryClient', () => {
         expect.objectContaining({ method: 'DELETE' }),
       );
     });
+
+    it('should URL-encode group id in path segment', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ data: {} }),
+      });
+
+      await client.removeGroupMember('group/with space', 'u1');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        `${testRegistry}/api/skill-groups/group%2Fwith%20space/members?user_id=u1`,
+        expect.objectContaining({ method: 'DELETE' }),
+      );
+    });
   });
 
   describe('updateGroupMemberRole', () => {
@@ -1697,6 +1755,23 @@ describe('RegistryClient', () => {
 
       expect(mockFetch).toHaveBeenCalledWith(
         `${testRegistry}/api/skill-groups/g1/members`,
+        expect.objectContaining({
+          method: 'PATCH',
+          body: JSON.stringify({ user_id: 'u1', role: 'maintainer' }),
+        }),
+      );
+    });
+
+    it('should URL-encode group id in path segment', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ data: {} }),
+      });
+
+      await client.updateGroupMemberRole('group/with space', 'u1', 'maintainer');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        `${testRegistry}/api/skill-groups/group%2Fwith%20space/members`,
         expect.objectContaining({
           method: 'PATCH',
           body: JSON.stringify({ user_id: 'u1', role: 'maintainer' }),

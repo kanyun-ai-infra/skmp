@@ -558,6 +558,7 @@ reskill pub [path] [options]
 | `--access <level>` | `public` | Access level: `public` or `restricted` |
 | `-n, --dry-run` | `false` | Validate without publishing |
 | `-y, --yes` | `false` | Skip confirmation prompts |
+| `-g, --group <path>` | - | Publish skill into a group path. Path is normalized (trim/lowercase/collapse slashes) and validated using group path rules |
 
 ### Validation Rules
 
@@ -597,6 +598,8 @@ reskill pub [path] [options]
 | Version already published | Error: "Version already exists" | `1` |
 | Uncommitted git changes | Warning, allow publish | `0` |
 | No git tag on commit | Warning, use commit hash | `0` |
+| `--group` provided with valid path | Normalize path and include `group_path` in publish request | `0` |
+| `--group` provided with invalid path | Error with group path validation message | `1` |
 
 ### Output
 
