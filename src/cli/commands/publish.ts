@@ -28,6 +28,7 @@ import { exists } from '../../utils/fs.js';
 import { logger } from '../../utils/logger.js';
 import { resolveRegistry } from '../../utils/registry.js';
 import { buildFullSkillName, getScopeForRegistry } from '../../utils/registry-scope.js';
+import { normalizeGroupPath, validateGroupPath } from '../../utils/group-path.js';
 
 // ============================================================================
 // Types
@@ -39,6 +40,7 @@ interface PublishOptions {
   access?: 'public' | 'restricted';
   dryRun?: boolean;
   yes?: boolean;
+  group?: string;
 }
 
 // ============================================================================
@@ -494,6 +496,7 @@ async function publishAction(skillPath: string, options: PublishOptions): Promis
   const absolutePath = path.resolve(skillPath);
   // Use cwd() as project root to find skills.json, not the skill path
   const registry = resolveRegistry(options.registry, process.cwd());
+  let normalizedGroupPath: string | undefined;
 
   // Validate registry is not a blocked public registry
   validateRegistry(registry);
@@ -502,6 +505,15 @@ async function publishAction(skillPath: string, options: PublishOptions): Promis
   if (!fs.existsSync(absolutePath)) {
     logger.error(`Directory not found: ${skillPath}`);
     process.exit(1);
+  }
+
+  if (options.group) {
+    normalizedGroupPath = normalizeGroupPath(options.group);
+    const validation = validateGroupPath(normalizedGroupPath);
+    if (!validation.valid) {
+      logger.error(validation.error);
+      process.exit(1);
+    }
   }
 
   const validator = new SkillValidator();
@@ -621,6 +633,12 @@ async function publishAction(skillPath: string, options: PublishOptions): Promis
     // Display metadata
     displayMetadata(skill);
 
+    // Display group info
+    if (normalizedGroupPath) {
+      logger.newline();
+      logger.log(`Group: ${normalizedGroupPath}`);
+    }
+
     // 8. Dry run mode ends here
     if (options.dryRun && payload) {
       displayDryRunSummary(payload);
@@ -669,7 +687,10 @@ async function publishAction(skillPath: string, options: PublishOptions): Promis
         process.exit(1);
       }
 
-      const result = await client.publish(skillName, payload, absolutePath, { tag: options.tag });
+      const result = await client.publish(skillName, payload, absolutePath, {
+        tag: options.tag,
+        groupPath: normalizedGroupPath,
+      });
 
       if (!result.success || !result.data) {
         logger.error(result.error || 'Publish failed');
@@ -723,6 +744,7 @@ export const publishCommand = new Command('publish')
   .option('--access <level>', 'Access level: public or restricted', 'public')
   .option('-n, --dry-run', 'Validate without publishing')
   .option('-y, --yes', 'Skip confirmation prompts')
+  .option('-g, --group <path>', 'Publish skill into a group (e.g., "kanyun/frontend")')
   .action(publishAction);
 
 export default publishCommand;

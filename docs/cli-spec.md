@@ -21,6 +21,7 @@
 | [whoami](#whoami) | - | Display current logged in user |
 | [doctor](#doctor) | - | Diagnose environment and check for issues |
 | [completion](#completion) | - | Setup shell completion |
+| [group](#group) | - | Manage skill groups |
 
 ---
 
@@ -562,6 +563,7 @@ reskill pub [path] [options]
 | `--access <level>` | `public` | Access level: `public` or `restricted` |
 | `-n, --dry-run` | `false` | Validate without publishing |
 | `-y, --yes` | `false` | Skip confirmation prompts |
+| `-g, --group <path>` | - | Publish skill into a group path. Path is normalized (trim/lowercase/collapse slashes) and validated using group path rules |
 
 ### Validation Rules
 
@@ -601,6 +603,8 @@ reskill pub [path] [options]
 | Version already published | Error: "Version already exists" | `1` |
 | Uncommitted git changes | Warning, allow publish | `0` |
 | No git tag on commit | Warning, use commit hash | `0` |
+| `--group` provided with valid path | Normalize path and include `group_path` in publish request | `0` |
+| `--group` provided with invalid path | Error with group path validation message | `1` |
 
 ### Output
 
@@ -1150,6 +1154,323 @@ The `getApiPrefix(registryUrl)` utility resolves the prefix. The `RegistryClient
   }
 }
 ```
+
+---
+
+## group
+
+Manage skill groups in the registry.
+
+### Synopsis
+
+```
+reskill group <subcommand> [options]
+```
+
+### Subcommands
+
+| Subcommand | Description |
+|------------|-------------|
+| `list` | List visible groups |
+| `create <name>` | Create a new group |
+| `info <path>` | Show group details |
+| `delete <path>` | Delete a group |
+| `member list <path>` | List members of a group |
+| `member add <path> <users...>` | Add members to a group |
+| `member remove <path> <user>` | Remove a member from a group |
+| `member role <path> <user> <role>` | Change a member's role |
+
+---
+
+### group list
+
+List groups visible to the current user.
+
+#### Synopsis
+
+```
+reskill group list [options]
+```
+
+#### Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `-r, --registry <url>` | `$RESKILL_REGISTRY` | Registry URL |
+| `--tree` | `false` | Render groups as a tree (requests flat group list from API) |
+| `-j, --json` | `false` | Output raw JSON |
+
+#### Behavior
+
+| Scenario | Expected Behavior | Exit Code |
+|----------|-------------------|-----------|
+| Not authenticated | Error: "Authentication required" | `1` |
+| Groups found | Print group list | `0` |
+| No groups found | Warning: "No groups found" | `0` |
+| `--tree` | Print groups as indented tree sorted by path | `0` |
+| `--json` | Print raw JSON array | `0` |
+| API error | Error with message | `1` |
+
+---
+
+### group create
+
+Create a new skill group.
+
+#### Synopsis
+
+```
+reskill group create [options] <name>
+```
+
+#### Arguments
+
+| Argument | Description |
+|----------|-------------|
+| `<name>` | Human-readable group name (used to generate slug) |
+
+#### Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `-r, --registry <url>` | `$RESKILL_REGISTRY` | Registry URL |
+| `-d, --description <text>` | - | Group description |
+| `--visibility <level>` | `public` | Visibility: `public` or `private` |
+| `--parent <path>` | - | Parent group path (for sub-groups) |
+| `-j, --json` | `false` | Output raw JSON |
+
+#### Behavior
+
+| Scenario | Expected Behavior | Exit Code |
+|----------|-------------------|-----------|
+| Not authenticated | Error: "Authentication required" | `1` |
+| Valid name | Generate slug, create group, print path | `0` |
+| Name produces empty slug | Error: "Name must contain at least one ASCII alphanumeric character" | `1` |
+| Name produces invalid slug | Error with generated slug | `1` |
+| `--parent` provided | Resolve parent path and set as parent | `0` |
+| `--parent` not found | Error: "Parent group not found" | `1` |
+| API error | Error with message | `1` |
+
+#### Group Path Normalization (§13.2)
+
+Input paths are normalized before use:
+- Strip leading/trailing whitespace and slashes
+- Collapse consecutive slashes
+- Lowercase
+
+#### Slug Generation Rules (§13.4)
+
+Generated from `<name>`:
+- Lowercase and trim
+- Replace spaces and underscores with hyphens
+- Strip non-alphanumeric characters (except hyphens)
+- Collapse consecutive hyphens
+- Strip leading/trailing hyphens
+- Truncate to 64 characters (trailing hyphen removed after truncation)
+- Must match `/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/`
+
+#### Group Path Validation Rules (§13.2)
+
+| Rule | Details |
+|------|---------|
+| Non-empty | Path cannot be empty |
+| Max depth | At most 3 segments (e.g., `org/team/sub`) |
+| Segment length | Each segment ≤ 64 characters |
+| Segment format | Each segment must match `/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/` |
+
+---
+
+### group info
+
+Show details for a group.
+
+#### Synopsis
+
+```
+reskill group info [options] <path>
+```
+
+#### Arguments
+
+| Argument | Description |
+|----------|-------------|
+| `<path>` | Group path (e.g., `kanyun/frontend`) |
+
+#### Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `-r, --registry <url>` | `$RESKILL_REGISTRY` | Registry URL |
+| `-j, --json` | `false` | Output raw JSON |
+
+#### Behavior
+
+| Scenario | Expected Behavior | Exit Code |
+|----------|-------------------|-----------|
+| Not authenticated | Error: "Authentication required" | `1` |
+| Group found | Print group details (name, path, visibility, level, skills, members, sub-groups) | `0` |
+| Group not found | Error: "Group not found" | `1` |
+| Invalid path | Error with validation message | `1` |
+| API error | Error with message | `1` |
+
+---
+
+### group delete
+
+Delete a skill group.
+
+#### Synopsis
+
+```
+reskill group delete [options] <path>
+```
+
+#### Arguments
+
+| Argument | Description |
+|----------|-------------|
+| `<path>` | Group path to delete |
+
+#### Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `-r, --registry <url>` | `$RESKILL_REGISTRY` | Registry URL |
+| `-n, --dry-run` | `false` | Preview deletion without executing |
+| `-y, --yes` | `false` | Skip confirmation prompt |
+
+#### Behavior
+
+| Scenario | Expected Behavior | Exit Code |
+|----------|-------------------|-----------|
+| Not authenticated | Error: "Authentication required" | `1` |
+| `--dry-run` | Print affected skills count, no changes made | `0` |
+| Interactive prompt declined | Print "Cancelled." | `0` |
+| Confirmed deletion | Delete group, print success | `0` |
+| Group not found | Error: "Group not found" | `1` |
+| Invalid path | Error with validation message | `1` |
+| API error | Error with message | `1` |
+
+---
+
+### group member list
+
+List members of a group.
+
+#### Synopsis
+
+```
+reskill group member list [options] <path>
+```
+
+#### Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `-r, --registry <url>` | `$RESKILL_REGISTRY` | Registry URL |
+| `-j, --json` | `false` | Output raw JSON |
+
+#### Behavior
+
+| Scenario | Expected Behavior | Exit Code |
+|----------|-------------------|-----------|
+| Not authenticated | Error: "Authentication required" | `1` |
+| Members found | Print member list with handles and roles | `0` |
+| No members | Warning: "No members in group" | `0` |
+| Group not found | Error | `1` |
+| API error | Error with message | `1` |
+
+---
+
+### group member add
+
+Add members to a group.
+
+#### Synopsis
+
+```
+reskill group member add [options] <path> <users...>
+```
+
+#### Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `-r, --registry <url>` | `$RESKILL_REGISTRY` | Registry URL |
+| `--role <role>` | `developer` | Role to assign: `owner`, `maintainer`, or `developer` |
+
+#### Behavior
+
+| Scenario | Expected Behavior | Exit Code |
+|----------|-------------------|-----------|
+| Not authenticated | Error: "Authentication required" | `1` |
+| Valid users and role | Add members, print success | `0` |
+| Invalid role | Error: "Invalid role" | `1` |
+| Group not found | Error | `1` |
+| API error | Error with message | `1` |
+
+---
+
+### group member remove
+
+Remove a member from a group.
+
+#### Synopsis
+
+```
+reskill group member remove [options] <path> <user>
+```
+
+#### Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `-r, --registry <url>` | `$RESKILL_REGISTRY` | Registry URL |
+
+#### Behavior
+
+| Scenario | Expected Behavior | Exit Code |
+|----------|-------------------|-----------|
+| Not authenticated | Error: "Authentication required" | `1` |
+| Valid user | Remove member, print success | `0` |
+| Group not found | Error | `1` |
+| API error | Error with message | `1` |
+
+---
+
+### group member role
+
+Change a member's role in a group.
+
+#### Synopsis
+
+```
+reskill group member role [options] <path> <user> <role>
+```
+
+#### Arguments
+
+| Argument | Description |
+|----------|-------------|
+| `<path>` | Group path |
+| `<user>` | User ID or handle |
+| `<role>` | New role: `owner`, `maintainer`, or `developer` |
+
+#### Options
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `-r, --registry <url>` | `$RESKILL_REGISTRY` | Registry URL |
+
+#### Behavior
+
+| Scenario | Expected Behavior | Exit Code |
+|----------|-------------------|-----------|
+| Not authenticated | Error: "Authentication required" | `1` |
+| Valid role | Update member role, print success | `0` |
+| Invalid role | Error: "Invalid role" | `1` |
+| Group not found | Error | `1` |
+| API error | Error with message | `1` |
 
 ---
 

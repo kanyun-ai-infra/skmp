@@ -464,6 +464,36 @@ compatibility: cursor >=0.40
   });
 
   // ============================================================================
+  // --group path normalization/validation
+  // ============================================================================
+
+  describe('--group option', () => {
+    it('should normalize group path before display', () => {
+      createValidSkillMd();
+
+      const result = runCli(
+        `publish --dry-run --registry ${TEST_REGISTRY} --group " /Kanyun///Frontend/ "`,
+        tempDir,
+      );
+
+      expect(result.exitCode).toBe(0);
+      expect(getOutput(result)).toContain('Group: kanyun/frontend');
+    });
+
+    it('should fail for invalid group path', () => {
+      createValidSkillMd();
+
+      const result = runCli(
+        `publish --dry-run --registry ${TEST_REGISTRY} --group "kanyun/front_end"`,
+        tempDir,
+      );
+
+      expect(result.exitCode).toBe(1);
+      expect(getOutput(result)).toContain('Invalid group path segment');
+    });
+  });
+
+  // ============================================================================
   // Blocked public registry
   // ============================================================================
 
