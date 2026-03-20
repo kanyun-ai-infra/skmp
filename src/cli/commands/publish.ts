@@ -26,7 +26,7 @@ import {
 import { logger } from '../../utils/logger.js';
 import { resolveRegistry } from '../../utils/registry.js';
 import { buildFullSkillName, getScopeForRegistry } from '../../utils/registry-scope.js';
-import { normalizeGroupPath, validateGroupPath } from './group.js';
+import { normalizeGroupPath, validateGroupPath } from '../../utils/group-path.js';
 
 // ============================================================================
 // Types

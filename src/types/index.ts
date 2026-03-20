@@ -348,7 +348,7 @@ export interface GroupDetail extends SkillGroup {
 
 export interface GroupMember {
   user_id: string;
-  handle: string;
+  handle?: string;
   email?: string;
   role: GroupRole;
   joined_at?: string;

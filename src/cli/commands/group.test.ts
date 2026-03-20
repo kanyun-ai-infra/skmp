@@ -5,7 +5,8 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import groupCommand, { generateSlug, normalizeGroupPath, validateGroupPath } from './group.js';
+import groupCommand from './group.js';
+import { generateSlug, normalizeGroupPath, validateGroupPath } from '../../utils/group-path.js';
 
 describe('group command', () => {
   describe('command definition', () => {
