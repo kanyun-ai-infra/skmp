@@ -271,6 +271,7 @@ export const DEFAULT_RULES: readonly ScanRule[] = [
   },
 
   // Rule 3: Content Obfuscation (high) — scans ALL content including safe zones
+  //   Zero-width chars and base64 are suspicious everywhere (even inside code blocks).
   {
     id: 'obfuscation',
     level: 'high',
@@ -301,6 +302,20 @@ export const DEFAULT_RULES: readonly ScanRule[] = [
           });
         }
       }
+
+      return matches;
+    },
+  },
+
+  // Rule 3b: Large HTML Comments (high) — respects safe zones (code blocks, etc.)
+  //   HTML comments inside fenced code blocks are normal code examples, not obfuscation.
+  {
+    id: 'obfuscation',
+    level: 'high',
+    message: 'Detected content obfuscation',
+    skipSafeZones: true,
+    check: (content) => {
+      const matches: ScanRuleMatch[] = [];
 
       // Large HTML comments (>200 chars of content)
       const commentRegex = /<!--([\s\S]{200,}?)-->/g;
