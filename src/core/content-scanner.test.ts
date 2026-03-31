@@ -426,6 +426,77 @@ describe('ContentScanner - obfuscation', () => {
     const obfFindings = result.findings.filter((f) => f.rule === 'obfuscation');
     expect(obfFindings).toHaveLength(0);
   });
+
+  // --- Issue #401: HTML comments inside code blocks should NOT trigger ---
+
+  it('should NOT trigger on HTML comments inside fenced code blocks', () => {
+    const content = [
+      '# My Skill',
+      '',
+      '```html',
+      '<!DOCTYPE html>',
+      '<html>',
+      '<!-- p5.js from CDN – always available -->',
+      '<script src="https://cdn.example.com/p5.min.js"></script>',
+      '<!-- Main application script -->',
+      '<script src="app.js"></script>',
+      '</html>',
+      '```',
+    ].join('\n');
+    const result = scanner.scan(content);
+
+    const obfFindings = result.findings.filter((f) => f.rule === 'obfuscation');
+    expect(obfFindings).toHaveLength(0);
+  });
+
+  it('should NOT trigger on large HTML comments inside fenced code blocks', () => {
+    const longComment = `<!-- ${'this is a normal html comment. '.repeat(10)} -->`;
+    expect(longComment.length).toBeGreaterThan(200);
+    const content = `# Title\n\n\`\`\`html\n${longComment}\n\`\`\`\n\nNormal text`;
+    const result = scanner.scan(content);
+
+    const obfFindings = result.findings.filter((f) => f.rule === 'obfuscation');
+    expect(obfFindings).toHaveLength(0);
+  });
+
+  it('should NOT trigger on multiple HTML comments inside code blocks that span >200 chars total', () => {
+    const content = [
+      '# HTML Skill',
+      '',
+      '```html',
+      '<!-- This is a standard HTML comment explaining the structure of this page -->',
+      '<div class="container">',
+      '  <!-- Navigation section with responsive breakpoints and accessibility attributes -->',
+      '  <nav role="navigation" aria-label="Main">',
+      '    <!-- Each link has proper aria labels for screen readers and keyboard navigation support -->',
+      '    <a href="/">Home</a>',
+      '  </nav>',
+      '</div>',
+      '```',
+    ].join('\n');
+    const result = scanner.scan(content);
+
+    const obfFindings = result.findings.filter((f) => f.rule === 'obfuscation');
+    expect(obfFindings).toHaveLength(0);
+  });
+
+  it('should still detect large HTML comments in prose (outside code blocks)', () => {
+    const longComment = `<!--${'x'.repeat(250)}-->`;
+    const content = `# Title\n\n${longComment}\n\nMore text`;
+    const result = scanner.scan(content);
+
+    expect(result.findings.some((f) => f.rule === 'obfuscation')).toBe(true);
+  });
+
+  it('should NOT trigger on HTML comments inside indented code blocks', () => {
+    const longComment = `<!-- ${'this is a normal html comment. '.repeat(10)} -->`;
+    expect(longComment.length).toBeGreaterThan(200);
+    const content = `Normal line\n\n    ${longComment}\n    <div>test</div>\n\nAfter`;
+    const result = scanner.scan(content);
+
+    const obfFindings = result.findings.filter((f) => f.rule === 'obfuscation');
+    expect(obfFindings).toHaveLength(0);
+  });
 });
 
 // ============================================================================
@@ -846,6 +917,51 @@ describe('ContentScanner - realistic content', () => {
     expect(result.passed).toBe(false);
     expect(result.findings.some((f) => f.rule === 'prompt-injection')).toBe(true);
     expect(result.findings.some((f) => f.rule === 'data-exfiltration')).toBe(true);
+  });
+
+  // Issue #401: HTML/frontend skill with code examples containing HTML comments
+  it('should pass a frontend skill with HTML comments in code blocks', () => {
+    const content = [
+      '---',
+      'name: p5js-helper',
+      'description: Helps build p5.js creative coding projects',
+      '---',
+      '',
+      '# p5.js Helper',
+      '',
+      'This skill helps you create p5.js sketches.',
+      '',
+      '## Basic Template',
+      '',
+      '```html',
+      '<!DOCTYPE html>',
+      '<html lang="en">',
+      '<head>',
+      '  <meta charset="UTF-8">',
+      '  <!-- p5.js from CDN – always available -->',
+      '  <script src="https://cdn.jsdelivr.net/npm/p5@1.9.0/lib/p5.min.js"></script>',
+      '  <!-- p5.sound for audio visualization projects -->',
+      '  <script src="https://cdn.jsdelivr.net/npm/p5@1.9.0/lib/addons/p5.sound.min.js"></script>',
+      '</head>',
+      '<body>',
+      '  <!-- Main canvas will be injected here by p5.js -->',
+      '  <main id="canvas-container"></main>',
+      '  <!-- Application entry point – must come after p5.js -->',
+      '  <script src="sketch.js"></script>',
+      '</body>',
+      '</html>',
+      '```',
+      '',
+      '## Setup',
+      '',
+      'Create a `sketch.js` file with the standard p5.js structure.',
+    ].join('\n');
+
+    const result = scanner.scan(content);
+
+    expect(result.passed).toBe(true);
+    const obfFindings = result.findings.filter((f) => f.rule === 'obfuscation');
+    expect(obfFindings).toHaveLength(0);
   });
 });
 
