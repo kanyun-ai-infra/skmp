@@ -229,14 +229,15 @@ describe('find command', () => {
       });
     });
 
-    it('should fallback to AuthManager when --token is not provided', async () => {
+    it('should fallback to AuthManager with resolved registry when --token is not provided', async () => {
       const { RegistryClient } = await import('../../core/registry-client.js');
       mockGetToken.mockReturnValue('stored-token');
       mockSearch.mockResolvedValueOnce({ items: [], total: 0 });
 
       await findAction('test', {});
 
-      expect(mockGetToken).toHaveBeenCalled();
+      // Should use resolved registry URL, not raw options.registry
+      expect(mockGetToken).toHaveBeenCalledWith('https://reskill.info/');
       expect(RegistryClient).toHaveBeenCalledWith({
         registry: 'https://reskill.info/',
         token: 'stored-token',

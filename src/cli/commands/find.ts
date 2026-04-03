@@ -125,7 +125,7 @@ export async function findAction(query: string, options: FindOptions): Promise<v
   let token = options.token;
   if (!token) {
     const authManager = new AuthManager();
-    token = authManager.getToken(options.registry) ?? undefined;
+    token = authManager.getToken(registry) ?? undefined;
   }
 
   const client = new RegistryClient({ registry, token });
