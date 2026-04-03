@@ -2500,6 +2500,54 @@ describe('SkillManager resolveRegistryUrl', () => {
     const url = await callResolveRegistryUrl(skillManager, 'unknown-skill');
     expect(url).toBe('https://reskill.info/');
   });
+
+  it('should use scoped registries from skills.json for scoped skills', async () => {
+    fs.writeFileSync(
+      path.join(tempDir, 'skills.json'),
+      JSON.stringify({
+        skills: {},
+        registries: {
+          '@custom-scope': 'https://custom.registry.com/',
+        },
+      }),
+    );
+
+    const manager = new SkillManager(tempDir);
+    const url = await callResolveRegistryUrl(manager, '@custom-scope/my-skill');
+    expect(url).toBe('https://custom.registry.com/');
+  });
+
+  it('should allow skills.json scoped registries to override hardcoded defaults', async () => {
+    fs.writeFileSync(
+      path.join(tempDir, 'skills.json'),
+      JSON.stringify({
+        skills: {},
+        registries: {
+          '@kanyun-test': 'https://override.registry.com/',
+        },
+      }),
+    );
+
+    const manager = new SkillManager(tempDir);
+    const url = await callResolveRegistryUrl(manager, '@kanyun-test/my-skill');
+    expect(url).toBe('https://override.registry.com/');
+  });
+
+  it('should still use hardcoded map when skills.json has no scoped entries', async () => {
+    fs.writeFileSync(
+      path.join(tempDir, 'skills.json'),
+      JSON.stringify({
+        skills: {},
+        registries: {
+          github: 'https://github.com',
+        },
+      }),
+    );
+
+    const manager = new SkillManager(tempDir);
+    const url = await callResolveRegistryUrl(manager, '@kanyun/my-skill');
+    expect(url).toBe('https://rush.zhenguanyu.com/');
+  });
 });
 
 // ============================================================================
