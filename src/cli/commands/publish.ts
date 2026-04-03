@@ -41,6 +41,7 @@ interface PublishOptions {
   dryRun?: boolean;
   yes?: boolean;
   group?: string;
+  token?: string;
 }
 
 // ============================================================================
@@ -656,9 +657,12 @@ async function publishAction(skillPath: string, options: PublishOptions): Promis
       }
     }
 
-    // 10. Get auth token
-    const authManager = new AuthManager();
-    const token = authManager.getToken(registry);
+    // 10. Get auth token: --token flag > RESKILL_TOKEN env > ~/.reskillrc
+    let token = options.token;
+    if (!token) {
+      const authManager = new AuthManager();
+      token = authManager.getToken(registry) ?? undefined;
+    }
     if (!token) {
       logger.error('Authentication required');
       logger.newline();
@@ -745,6 +749,7 @@ export const publishCommand = new Command('publish')
   .option('-n, --dry-run', 'Validate without publishing')
   .option('-y, --yes', 'Skip confirmation prompts')
   .option('-g, --group <path>', 'Publish skill into a group (e.g., "kanyun/frontend")')
+  .option('--token <token>', 'Auth token for registry API requests (for CI/CD)')
   .action(publishAction);
 
 export default publishCommand;
