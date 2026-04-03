@@ -138,8 +138,21 @@ function validateRegistry(registry: string): void {
 
 /**
  * Check authentication
+ *
+ * Token resolution: --token CLI flag > RESKILL_TOKEN env > ~/.reskillrc
+ *
+ * @internal Exported for testing
  */
-function checkAuth(registry: string, dryRun: boolean): { token: string } | null {
+export function checkAuth(
+  registry: string,
+  dryRun: boolean,
+  cliToken?: string,
+): { token: string } | null {
+  // --token flag takes highest priority
+  if (cliToken) {
+    return { token: cliToken };
+  }
+
   const authManager = new AuthManager();
   const token = authManager.getToken(registry);
 
@@ -151,7 +164,7 @@ function checkAuth(registry: string, dryRun: boolean): { token: string } | null 
     logger.error('Authentication required');
     logger.newline();
     logger.log('You must be logged in to publish skills.');
-    logger.log("Run 'reskill login' to authenticate.");
+    logger.log("Run 'reskill login' to authenticate, or pass --token <token>.");
     process.exit(1);
   }
 
@@ -523,7 +536,7 @@ async function publishAction(skillPath: string, options: PublishOptions): Promis
   try {
     // 1. Check authentication (skip for dry-run)
     // Note: checkAuth exits the process if not authenticated (unless dry-run)
-    checkAuth(registry, options.dryRun || false);
+    const authResult = checkAuth(registry, options.dryRun || false, options.token);
 
     // 2. Load skill
     const skill = validator.loadSkill(absolutePath);
@@ -657,19 +670,8 @@ async function publishAction(skillPath: string, options: PublishOptions): Promis
       }
     }
 
-    // 10. Get auth token: --token flag > RESKILL_TOKEN env > ~/.reskillrc
-    let token = options.token;
-    if (!token) {
-      const authManager = new AuthManager();
-      token = authManager.getToken(registry) ?? undefined;
-    }
-    if (!token) {
-      logger.error('Authentication required');
-      logger.newline();
-      logger.log('You must be logged in to publish skills.');
-      logger.log("Run 'reskill login' to authenticate.");
-      process.exit(1);
-    }
+    // 10. Get auth token (already resolved by checkAuth in step 1)
+    const token = authResult?.token;
 
     // 11. Actually publish
     logger.newline();
