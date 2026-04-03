@@ -19,6 +19,7 @@ import {
 import { parseGitUrl } from '../utils/git.js';
 import { logger } from '../utils/logger.js';
 import {
+  type ScopeRegistries,
   getRegistryUrl,
   getScopeForRegistry,
   getShortName,
@@ -564,7 +565,7 @@ export class SkillManager {
    *
    * Resolution order:
    * 1. Explicit CLI override (options.registry)
-   * 2. Scoped skills → getRegistryUrl(scope)
+   * 2. Scoped skills → getRegistryUrl(scope, scopeRegistries from skills.json)
    * 3. Unscoped skills → lock file registry (O(1), no network)
    * 4. Unscoped skills → probe skills.json registries (non-git-host, network)
    * 5. Default → PUBLIC_REGISTRY
@@ -573,7 +574,10 @@ export class SkillManager {
     if (explicitRegistry) return explicitRegistry;
 
     const parsed = parseSkillIdentifier(ref);
-    if (parsed.scope) return getRegistryUrl(parsed.scope);
+    if (parsed.scope) {
+      const scopeRegistries = this.getScopeRegistriesFromConfig();
+      return getRegistryUrl(parsed.scope, scopeRegistries);
+    }
 
     // Fast path: lock file has registry URL
     const locked = this.lockManager.get(parsed.name);
@@ -607,6 +611,21 @@ export class SkillManager {
     const gitHostPatterns = ['github.com', 'gitlab.com'];
     const normalizedUrl = url.toLowerCase();
     return gitHostPatterns.some((pattern) => normalizedUrl.includes(pattern));
+  }
+
+  /**
+   * Extract @scope-prefixed entries from skills.json registries
+   * so users can configure custom scope→registry mappings declaratively.
+   */
+  private getScopeRegistriesFromConfig(): ScopeRegistries {
+    const registries = this.config.getRegistries();
+    const scopeRegistries: ScopeRegistries = {};
+    for (const [name, url] of Object.entries(registries)) {
+      if (name.startsWith('@')) {
+        scopeRegistries[name] = url;
+      }
+    }
+    return scopeRegistries;
   }
 
   /**
