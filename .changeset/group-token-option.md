@@ -1,5 +1,5 @@
 ---
-"reskill": patch
+"reskill": minor
 ---
 
 Add `--token` (`-t`) option to all `group` and `group member` subcommands
