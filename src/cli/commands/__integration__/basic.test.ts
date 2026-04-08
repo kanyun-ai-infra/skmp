@@ -65,6 +65,27 @@ describe('CLI Integration: Version & Help', () => {
     expect(stdout).toContain('--token');
     expect(stdout).toContain('-t');
   });
+
+  it('should show --token option in group list help', () => {
+    const { stdout, exitCode } = runCli('group list --help');
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('--token');
+    expect(stdout).toContain('-t');
+  });
+
+  it('should show --token option in group create help', () => {
+    const { stdout, exitCode } = runCli('group create --help');
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('--token');
+    expect(stdout).toContain('-t');
+  });
+
+  it('should show --token option in group member list help', () => {
+    const { stdout, exitCode } = runCli('group member list --help');
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('--token');
+    expect(stdout).toContain('-t');
+  });
 });
 
 // ============================================================================
