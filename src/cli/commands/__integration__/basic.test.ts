@@ -65,6 +65,62 @@ describe('CLI Integration: Version & Help', () => {
     expect(stdout).toContain('--token');
     expect(stdout).toContain('-t');
   });
+
+  it('should show --token option in group list help', () => {
+    const { stdout, exitCode } = runCli('group list --help');
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('--token');
+    expect(stdout).toContain('-t');
+  });
+
+  it('should show --token option in group create help', () => {
+    const { stdout, exitCode } = runCli('group create --help');
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('--token');
+    expect(stdout).toContain('-t');
+  });
+
+  it('should show --token option in group member list help', () => {
+    const { stdout, exitCode } = runCli('group member list --help');
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('--token');
+    expect(stdout).toContain('-t');
+  });
+
+  it('should show --token option in group delete help', () => {
+    const { stdout, exitCode } = runCli('group delete --help');
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('--token');
+    expect(stdout).toContain('-t');
+  });
+
+  it('should show --token option in group member add help', () => {
+    const { stdout, exitCode } = runCli('group member add --help');
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('--token');
+    expect(stdout).toContain('-t');
+  });
+
+  it('should show --token option in group info help', () => {
+    const { stdout, exitCode } = runCli('group info --help');
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('--token');
+    expect(stdout).toContain('-t');
+  });
+
+  it('should show --token option in group member remove help', () => {
+    const { stdout, exitCode } = runCli('group member remove --help');
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('--token');
+    expect(stdout).toContain('-t');
+  });
+
+  it('should show --token option in group member role help', () => {
+    const { stdout, exitCode } = runCli('group member role --help');
+    expect(exitCode).toBe(0);
+    expect(stdout).toContain('--token');
+    expect(stdout).toContain('-t');
+  });
 });
 
 // ============================================================================

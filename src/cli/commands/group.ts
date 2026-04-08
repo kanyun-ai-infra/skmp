@@ -35,6 +35,7 @@ import { resolveRegistry } from '../../utils/registry.js';
 
 interface GroupCommandOptions {
   registry?: string;
+  token?: string;
   json?: boolean;
   tree?: boolean;
 }
@@ -79,14 +80,19 @@ function assertValidGroupPath(path: string): void {
 // Client Factory
 // ============================================================================
 
-function createClient(registry: string): RegistryClient {
+function createClient(registry: string, cliToken?: string): RegistryClient {
+  // --token flag takes highest priority
+  if (cliToken) {
+    return new RegistryClient({ registry, token: cliToken });
+  }
+
   const authManager = new AuthManager();
   const token = authManager.getToken(registry);
 
   if (!token) {
     logger.error('Authentication required');
     logger.newline();
-    logger.log("Run 'reskill login' to authenticate.");
+    logger.log("Run 'reskill login' to authenticate, or pass --token <token>.");
     process.exit(1);
   }
 
@@ -218,7 +224,7 @@ function displayMemberList(members: GroupMember[], groupPath: string, json: bool
 
 async function listAction(options: GroupCommandOptions): Promise<void> {
   const registry = resolveRegistry(options.registry);
-  const client = createClient(registry);
+  const client = createClient(registry, options.token);
 
   try {
     const groups = await client.listGroups({ flat: Boolean(options.tree) });
@@ -255,7 +261,7 @@ async function createAction(name: string, options: GroupCreateOptions): Promise<
   if (options.parent) {
     const normalizedParent = normalizeGroupPath(options.parent);
     assertValidGroupPath(normalizedParent);
-    client = createClient(registry);
+    client = createClient(registry, options.token);
     try {
       const parentGroup = await client.resolveGroup(normalizedParent);
       parentId = parentGroup.id;
@@ -270,7 +276,7 @@ async function createAction(name: string, options: GroupCreateOptions): Promise<
   }
 
   try {
-    const ensuredClient = client ?? createClient(registry);
+    const ensuredClient = client ?? createClient(registry, options.token);
     const group = await ensuredClient.createGroup({
       name,
       slug,
@@ -302,7 +308,7 @@ async function infoAction(groupPath: string, options: GroupCommandOptions): Prom
   const normalized = normalizeGroupPath(groupPath);
   assertValidGroupPath(normalized);
   const registry = resolveRegistry(options.registry);
-  const client = createClient(registry);
+  const client = createClient(registry, options.token);
 
   try {
     const detail = await client.resolveGroup(normalized);
@@ -325,7 +331,7 @@ async function deleteAction(groupPath: string, options: GroupDeleteOptions): Pro
   const normalized = normalizeGroupPath(groupPath);
   assertValidGroupPath(normalized);
   const registry = resolveRegistry(options.registry);
-  const client = createClient(registry);
+  const client = createClient(registry, options.token);
 
   try {
     const detail = await client.resolveGroup(normalized);
@@ -380,7 +386,7 @@ async function memberListAction(groupPath: string, options: GroupCommandOptions)
   const normalized = normalizeGroupPath(groupPath);
   assertValidGroupPath(normalized);
   const registry = resolveRegistry(options.registry);
-  const client = createClient(registry);
+  const client = createClient(registry, options.token);
 
   try {
     const detail = await client.resolveGroup(normalized);
@@ -404,7 +410,7 @@ async function memberAddAction(
   const normalized = normalizeGroupPath(groupPath);
   assertValidGroupPath(normalized);
   const registry = resolveRegistry(options.registry);
-  const client = createClient(registry);
+  const client = createClient(registry, options.token);
   const role = options.role || 'developer';
 
   if (!validateRole(role)) {
@@ -434,7 +440,7 @@ async function memberRemoveAction(
   const normalized = normalizeGroupPath(groupPath);
   assertValidGroupPath(normalized);
   const registry = resolveRegistry(options.registry);
-  const client = createClient(registry);
+  const client = createClient(registry, options.token);
 
   try {
     const detail = await client.resolveGroup(normalized);
@@ -459,7 +465,7 @@ async function memberRoleAction(
   const normalized = normalizeGroupPath(groupPath);
   assertValidGroupPath(normalized);
   const registry = resolveRegistry(options.registry);
-  const client = createClient(registry);
+  const client = createClient(registry, options.token);
 
   if (!validateRole(role)) {
     logger.error(`Invalid role "${role}". Must be one of: ${VALID_ROLES.join(', ')}`);
@@ -490,6 +496,7 @@ memberCommand
   .command('list <path>')
   .description('List members of a group')
   .option('-r, --registry <url>', 'Registry URL')
+  .option('-t, --token <token>', 'Auth token for registry API requests (for CI/CD)')
   .option('-j, --json', 'Output as JSON')
   .action(memberListAction);
 
@@ -497,6 +504,7 @@ memberCommand
   .command('add <path> <users...>')
   .description('Add members to a group')
   .option('-r, --registry <url>', 'Registry URL')
+  .option('-t, --token <token>', 'Auth token for registry API requests (for CI/CD)')
   .option('--role <role>', 'Role to assign (owner|maintainer|developer)', 'developer')
   .action(memberAddAction);
 
@@ -504,12 +512,14 @@ memberCommand
   .command('remove <path> <user>')
   .description('Remove a member from a group')
   .option('-r, --registry <url>', 'Registry URL')
+  .option('-t, --token <token>', 'Auth token for registry API requests (for CI/CD)')
   .action(memberRemoveAction);
 
 memberCommand
   .command('role <path> <user> <role>')
   .description("Change a member's role")
   .option('-r, --registry <url>', 'Registry URL')
+  .option('-t, --token <token>', 'Auth token for registry API requests (for CI/CD)')
   .action(memberRoleAction);
 
 export const groupCommand = new Command('group').description('Manage skill groups');
@@ -518,6 +528,7 @@ groupCommand
   .command('list')
   .description('List visible groups')
   .option('-r, --registry <url>', 'Registry URL')
+  .option('-t, --token <token>', 'Auth token for registry API requests (for CI/CD)')
   .option('--tree', 'Render groups as a tree (requests flat group list)')
   .option('-j, --json', 'Output as JSON')
   .action(listAction);
@@ -526,6 +537,7 @@ groupCommand
   .command('create <name>')
   .description('Create a new group')
   .option('-r, --registry <url>', 'Registry URL')
+  .option('-t, --token <token>', 'Auth token for registry API requests (for CI/CD)')
   .option('-d, --description <text>', 'Group description')
   .option('--visibility <level>', 'Visibility: public or private', 'public')
   .option('--parent <path>', 'Parent group path (for sub groups)')
@@ -536,6 +548,7 @@ groupCommand
   .command('info <path>')
   .description('Show group details')
   .option('-r, --registry <url>', 'Registry URL')
+  .option('-t, --token <token>', 'Auth token for registry API requests (for CI/CD)')
   .option('-j, --json', 'Output as JSON')
   .action(infoAction);
 
@@ -543,6 +556,7 @@ groupCommand
   .command('delete <path>')
   .description('Delete a group')
   .option('-r, --registry <url>', 'Registry URL')
+  .option('-t, --token <token>', 'Auth token for registry API requests (for CI/CD)')
   .option('-n, --dry-run', 'Preview deletion without executing')
   .option('-y, --yes', 'Skip confirmation')
   .action(deleteAction);
