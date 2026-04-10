@@ -30,6 +30,10 @@ export class LockManager {
     this._noManifest = enabled;
   }
 
+  get noManifest(): boolean {
+    return this._noManifest;
+  }
+
   /**
    * Get lock file path
    */

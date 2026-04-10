@@ -165,12 +165,13 @@ export class ConfigLoader {
    * @throws Error if no configuration to save
    */
   save(config?: SkillsJson): void {
-    if (this._noManifest) return;
     const toSave = config ?? this.config;
     if (!toSave) {
       throw new Error('No config to save');
     }
-    writeJson(this.configPath, toSave);
+    if (!this._noManifest) {
+      writeJson(this.configPath, toSave);
+    }
     this.config = toSave;
   }
 

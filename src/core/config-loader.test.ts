@@ -624,10 +624,12 @@ describe('ConfigLoader', () => {
   });
 
   describe('noManifest mode', () => {
-    it('should skip save() when noManifest is enabled', () => {
+    it('should skip disk write but update in-memory cache when noManifest is enabled', () => {
       configLoader.setNoManifest(true);
-      configLoader.create();
+      const config = configLoader.create();
       expect(fs.existsSync(path.join(tempDir, 'skills.json'))).toBe(false);
+      expect(config.skills).toEqual({});
+      expect(configLoader.getDefaults().installDir).toBe('.skills');
     });
 
     it('should skip ensureExists() when noManifest is enabled', () => {

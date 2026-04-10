@@ -29,7 +29,7 @@ interface InstallOptions {
   /** Auth token for registry API requests (overrides ~/.reskillrc and RESKILL_TOKEN) */
   token?: string;
   /** Skip all skills.json and skills.lock writes (for platform integration) */
-  noManifest?: boolean;
+  skipManifest?: boolean;
 }
 
 interface InstallContext {
@@ -44,7 +44,7 @@ interface InstallContext {
   isReinstallAll: boolean;
   isBatchInstall: boolean;
   skipConfirm: boolean;
-  noManifest: boolean;
+  skipManifest: boolean;
 }
 
 // ============================================================================
@@ -111,7 +111,7 @@ function createInstallContext(skills: string[], options: InstallOptions): Instal
     isReinstallAll: skills.length === 0,
     isBatchInstall: skills.length > 1,
     skipConfirm: options.yes ?? false,
-    noManifest: options.noManifest ?? false,
+    skipManifest: options.skipManifest ?? false,
   };
 }
 
@@ -386,7 +386,7 @@ async function installAllSkills(
 
   const skillManager = new SkillManager(undefined, {
     global: false,
-    noManifest: ctx.noManifest,
+    noManifest: ctx.skipManifest,
   });
   let totalInstalled = 0;
   let totalFailed = 0;
@@ -442,7 +442,7 @@ async function installSingleSkill(
 
   const skillManager = new SkillManager(undefined, {
     global: installGlobally,
-    noManifest: ctx.noManifest,
+    noManifest: ctx.skipManifest,
   });
 
   // Detect whether the ref points to a multi-skill directory
@@ -607,7 +607,7 @@ async function installMultiSkillFromRepo(
 ): Promise<void> {
   const skillManager = new SkillManager(undefined, {
     global: installGlobally,
-    noManifest: ctx.noManifest,
+    noManifest: ctx.skipManifest,
   });
 
   if (listOnly) {
@@ -718,7 +718,7 @@ async function installMultipleSkills(
   // Execute installation for all skills in parallel
   const skillManager = new SkillManager(undefined, {
     global: installGlobally,
-    noManifest: ctx.noManifest,
+    noManifest: ctx.skipManifest,
   });
   const successfulSkills: { name: string; version: string }[] = [];
   const failedSkills: { ref: string; error: string }[] = [];
@@ -968,7 +968,10 @@ export const installCommand = new Command('install')
   .option('--list', 'List available skills in the repository without installing')
   .option('-r, --registry <url>', 'Registry URL override for registry-based installs')
   .option('-t, --token <token>', 'Auth token for registry API requests (for CI/CD)')
-  .option('--no-manifest', 'Skip all skills.json and skills.lock writes (for platform integration)')
+  .option(
+    '--skip-manifest',
+    'Skip all skills.json and skills.lock writes (for platform integration)',
+  )
   .action(async (skills: string[], options: InstallOptions) => {
     // Handle --all flag implications
     if (options.all) {
@@ -985,9 +988,9 @@ export const installCommand = new Command('install')
       }
     }
 
-    // Resolve no-manifest mode: --no-manifest flag > RESKILL_NO_MANIFEST env
-    if (!options.noManifest && process.env.RESKILL_NO_MANIFEST === '1') {
-      options.noManifest = true;
+    // Resolve skip-manifest mode: --skip-manifest flag > RESKILL_NO_MANIFEST env
+    if (!options.skipManifest && process.env.RESKILL_NO_MANIFEST === '1') {
+      options.skipManifest = true;
     }
 
     // Create execution context
