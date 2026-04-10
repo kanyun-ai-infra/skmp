@@ -4,20 +4,30 @@
  * Verifies that --skip-manifest (and RESKILL_NO_MANIFEST env var)
  * prevents skills.json and skills.lock from being created or modified,
  * while still installing skill files normally.
+ *
+ * Uses createLocalMultiSkillRepo (git init -b main) for CI compatibility.
  */
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { createLocalGitRepo, createTempDir, pathExists, removeTempDir, runCli } from './helpers.js';
+import {
+  createLocalMultiSkillRepo,
+  createTempDir,
+  pathExists,
+  removeTempDir,
+  runCli,
+} from './helpers.js';
 
 describe('CLI Integration: install --skip-manifest', () => {
   let tempDir: string;
-  let skillRepoUrl: string;
+  let repoUrl: string;
 
   beforeEach(() => {
     tempDir = createTempDir();
-    skillRepoUrl = createLocalGitRepo(tempDir, 'test-skill');
+    repoUrl = createLocalMultiSkillRepo(tempDir, 'test-repo', [
+      { name: 'test-skill', description: 'A test skill' },
+    ]);
   });
 
   afterEach(() => {
@@ -26,7 +36,7 @@ describe('CLI Integration: install --skip-manifest', () => {
 
   it('should install skill files without creating skills.json or skills.lock', () => {
     const { exitCode, stdout, stderr } = runCli(
-      `install ${skillRepoUrl} -a cursor --mode copy -y --skip-manifest`,
+      `install ${repoUrl} --skill test-skill -a cursor --mode copy -y --skip-manifest`,
       tempDir,
     );
 
@@ -43,7 +53,7 @@ describe('CLI Integration: install --skip-manifest', () => {
     fs.writeFileSync(path.join(tempDir, 'skills.json'), JSON.stringify(existingConfig, null, 2));
 
     const { exitCode, stdout, stderr } = runCli(
-      `install ${skillRepoUrl} -a cursor --mode copy -y --skip-manifest`,
+      `install ${repoUrl} --skill test-skill -a cursor --mode copy -y --skip-manifest`,
       tempDir,
     );
 
@@ -55,7 +65,7 @@ describe('CLI Integration: install --skip-manifest', () => {
 
   it('should support RESKILL_NO_MANIFEST env var', () => {
     const { exitCode, stdout, stderr } = runCli(
-      `install ${skillRepoUrl} -a cursor --mode copy -y`,
+      `install ${repoUrl} --skill test-skill -a cursor --mode copy -y`,
       tempDir,
       { RESKILL_NO_MANIFEST: '1' },
     );
