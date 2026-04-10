@@ -289,7 +289,7 @@ describe('LockManager', () => {
       expect(fs.existsSync(path.join(tempDir, 'skills.lock'))).toBe(false);
     });
 
-    it('should skip set() when noManifest is enabled', () => {
+    it('should skip disk write but update in-memory state for set()', () => {
       lockManager.setNoManifest(true);
       lockManager.set('test-skill', {
         source: 'github:user/skill',
@@ -300,6 +300,7 @@ describe('LockManager', () => {
         installedAt: new Date().toISOString(),
       });
       expect(fs.existsSync(path.join(tempDir, 'skills.lock'))).toBe(false);
+      expect(lockManager.has('test-skill')).toBe(true);
     });
 
     it('should still return LockedSkill from lockSkill() even when not persisted', () => {

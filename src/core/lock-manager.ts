@@ -24,7 +24,8 @@ export class LockManager {
 
   /**
    * Enable/disable no-manifest mode.
-   * When enabled, write operations (save, set, lockSkill) become no-ops.
+   * When enabled, disk write operations (save, set, remove) become no-ops.
+   * lockSkill() still returns a LockedSkill but does not persist it.
    */
   setNoManifest(enabled: boolean): void {
     this._noManifest = enabled;
@@ -106,10 +107,11 @@ export class LockManager {
    * Set locked skill
    */
   set(name: string, skill: LockedSkill): void {
-    if (this._noManifest) return;
     const lock = this.load();
     lock.skills[name] = skill;
-    this.save();
+    if (!this._noManifest) {
+      this.save();
+    }
   }
 
   /**

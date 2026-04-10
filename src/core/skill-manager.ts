@@ -94,7 +94,7 @@ export class SkillManager {
     this.httpResolver = new HttpResolver();
     this.registryResolver = new RegistryResolver();
 
-    if (options?.noManifest || process.env.RESKILL_NO_MANIFEST === '1') {
+    if (options?.noManifest ?? process.env.RESKILL_NO_MANIFEST === '1') {
       this.setNoManifest(true);
     }
   }
