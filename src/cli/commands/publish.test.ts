@@ -342,11 +342,17 @@ describe('publish command', () => {
   // ============================================================================
 
   describe('command definition', () => {
-    it('should have --token option (long only)', () => {
+    it('should have -t, --token option', () => {
       const tokenOpt = publishCommand.options.find((o) => o.long === '--token');
       expect(tokenOpt).toBeDefined();
-      // -t is taken by --tag, so --token must not have short flag
-      expect(tokenOpt?.short).toBeUndefined();
+      // -t is --token (consistent with other commands); --tag has no short flag
+      expect(tokenOpt?.short).toBe('-t');
+    });
+
+    it('should have --tag option without short flag', () => {
+      const tagOpt = publishCommand.options.find((o) => o.long === '--tag');
+      expect(tagOpt).toBeDefined();
+      expect(tagOpt?.short).toBeUndefined();
     });
   });
 

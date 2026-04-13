@@ -1,7 +1,7 @@
 ---
 name: reskill-usage
 description: Teaches AI agents how to use reskill — a Git-based package manager for AI agent skills. Covers CLI commands, install formats, configuration, publishing, and common workflows.
-version: 0.1.3
+version: 0.1.4
 author: reskill
 tags:
   - cli
@@ -11,7 +11,7 @@ tags:
 ---
 
 <!-- source: README.md -->
-<!-- synced: 2026-04-08 -->
+<!-- synced: 2026-04-13 -->
 
 # reskill Usage Guide
 
@@ -37,6 +37,21 @@ Use this skill when the user:
 - Encounters reskill-related errors or needs troubleshooting
 - Wants to set up a project for skill management
 - Asks about multi-agent skill installation (Cursor, Claude Code, Codex, etc.)
+
+## AI Agent Execution Rules
+
+AI agents cannot respond to interactive prompts mid-command. Always add `-y` to commands that support confirmation prompts (`install`, `uninstall`, `publish`) to prevent the command from hanging.
+
+```bash
+# Correct — will not hang
+reskill install github:user/skill -y
+reskill uninstall skill-name -y
+reskill publish -y
+
+# Wrong — will hang waiting for confirmation
+reskill install github:user/skill
+reskill uninstall skill-name
+```
 
 ## Quick Start
 
@@ -88,8 +103,13 @@ Run `reskill <command> --help` for complete options and detailed usage.
 | `-f, --force`             | `install`                                                     | Force reinstall even if already installed                     |
 | `-s, --skill <names...>`  | `install`                                                     | Select specific skill(s) by name from a multi-skill repo      |
 | `--list`                  | `install`                                                     | List available skills in the repository without installing    |
+| `--skip-manifest`         | `install`                                                     | Skip all `skills.json` and `skills.lock` writes (for platform integration) |
 | `-t, --token <token>`     | `install`, `find`, `group`, `publish`, `login`                | Auth token for registry API requests (for CI/CD)              |
 | `-r, --registry <url>`    | `install`, `find`, `group`, `publish`, `login`, `logout`, `whoami` | Registry URL override for registry-enabled commands      |
+| `--tag <tag>`             | `publish`                                                     | Git tag to publish                                            |
+| `--access <level>`        | `publish`                                                     | Access level: `public` (default) or `restricted`              |
+| `-n, --dry-run`           | `publish`                                                     | Validate without publishing                                   |
+| `-g, --group <path>`      | `publish`                                                     | Publish skill into a group (e.g., `kanyun/frontend`)          |
 | `-j, --json`              | `list`, `info`, `outdated`, `doctor`, `group`, `find`         | Output as JSON                                                |
 | `-l, --limit <n>`         | `find`                                                        | Maximum number of search results                              |
 | `--skip-network`          | `doctor`                                                      | Skip network connectivity checks                             |
@@ -210,12 +230,13 @@ The project configuration file, created by `reskill init`:
 
 | Variable            | Description                                     | Default                        |
 | ------------------- | ----------------------------------------------- | ------------------------------ |
-| `RESKILL_CACHE_DIR` | Global cache directory                          | `~/.reskill-cache`             |
-| `RESKILL_TOKEN`     | Auth token (takes precedence over ~/.reskillrc) | -                              |
-| `RESKILL_REGISTRY`  | Default registry URL                            | `https://registry.reskill.dev` |
-| `DEBUG`             | Enable debug logging                            | -                              |
-| `VERBOSE`           | Enable debug logging (same effect as `DEBUG`)   | -                              |
-| `NO_COLOR`          | Disable colored output                          | -                              |
+| `RESKILL_CACHE_DIR`   | Global cache directory                          | `~/.reskill-cache`             |
+| `RESKILL_TOKEN`       | Auth token (takes precedence over ~/.reskillrc) | -                              |
+| `RESKILL_REGISTRY`    | Default registry URL                            | `https://registry.reskill.dev` |
+| `RESKILL_NO_MANIFEST` | Skip `skills.json` and `skills.lock` writes (set to `1` to enable) | -              |
+| `DEBUG`               | Enable debug logging                            | -                              |
+| `VERBOSE`             | Enable debug logging (same effect as `DEBUG`)   | -                              |
+| `NO_COLOR`            | Disable colored output                          | -                              |
 
 ## Multi-Agent Support
 

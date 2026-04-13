@@ -76,8 +76,13 @@ npx reskill@latest <command>  # Or use npx directly
 | `-f, --force`             | `install`                                                     | Force reinstall even if already installed                      |
 | `-s, --skill <names...>`  | `install`                                                     | Select specific skill(s) by name from a multi-skill repo      |
 | `--list`                  | `install`                                                     | List available skills in the repository without installing     |
+| `--skip-manifest`         | `install`                                                     | Skip all `skills.json` and `skills.lock` writes (for platform integration) |
 | `-t, --token <token>`     | `install`, `find`, `group`, `publish`, `login`                | Auth token for registry API requests (for CI/CD)               |
 | `-r, --registry <url>`    | `install`, `find`, `group`, `publish`, `login`, `logout`, `whoami` | Registry URL override for registry-enabled commands       |
+| `--tag <tag>`             | `publish`                                                     | Git tag to publish                                             |
+| `--access <level>`        | `publish`                                                     | Access level: `public` (default) or `restricted`               |
+| `-n, --dry-run`           | `publish`                                                     | Validate without publishing                                    |
+| `-g, --group <path>`      | `publish`                                                     | Publish skill into a group (e.g., `kanyun/frontend`)           |
 | `-j, --json`              | `list`, `info`, `outdated`, `doctor`, `group`, `find`         | Output as JSON                                                 |
 | `-l, --limit <n>`         | `find`                                                        | Maximum number of search results                               |
 | `--skip-network`          | `doctor`                                                      | Skip network connectivity checks                              |
@@ -293,12 +298,13 @@ reskill install @scope/private-skill --registry https://your-registry.com --toke
 
 | Variable            | Description                                     | Default                        |
 | ------------------- | ----------------------------------------------- | ------------------------------ |
-| `RESKILL_CACHE_DIR` | Global cache directory                          | `~/.reskill-cache`             |
-| `RESKILL_TOKEN`     | Auth token (takes precedence over ~/.reskillrc) | -                              |
-| `RESKILL_REGISTRY`  | Default registry URL                            | `https://registry.reskill.dev` |
-| `DEBUG`             | Enable debug logging                            | -                              |
-| `VERBOSE`           | Enable debug logging (same effect as `DEBUG`)   | -                              |
-| `NO_COLOR`          | Disable colored output                          | -                              |
+| `RESKILL_CACHE_DIR`   | Global cache directory                          | `~/.reskill-cache`             |
+| `RESKILL_TOKEN`       | Auth token (takes precedence over ~/.reskillrc) | -                              |
+| `RESKILL_REGISTRY`    | Default registry URL                            | `https://registry.reskill.dev` |
+| `RESKILL_NO_MANIFEST` | Skip `skills.json` and `skills.lock` writes (set to `1` to enable) | -              |
+| `DEBUG`               | Enable debug logging                            | -                              |
+| `VERBOSE`             | Enable debug logging (same effect as `DEBUG`)   | -                              |
+| `NO_COLOR`            | Disable colored output                          | -                              |
 
 reskill checks for newer versions in the background and shows an upgrade tip after command execution.
 

@@ -76,8 +76,13 @@ npx reskill@latest <command>  # 或直接使用 npx
 | `-f, --force`             | `install`                                                     | 强制重新安装                                 |
 | `-s, --skill <names...>`  | `install`                                                     | 从多 skill 仓库中选择指定 skill              |
 | `--list`                  | `install`                                                     | 列出仓库中可用的 skills（不安装）            |
+| `--skip-manifest`         | `install`                                                     | 跳过 `skills.json` 和 `skills.lock` 写入（用于平台集成） |
 | `-t, --token <token>`     | `install`, `find`, `group`, `publish`, `login`                | 认证令牌（用于 CI/CD 访问私有 skill）        |
 | `-r, --registry <url>`    | `install`, `find`, `group`, `publish`, `login`, `logout`, `whoami` | 覆盖 registry URL（用于 registry 相关命令）  |
+| `--tag <tag>`             | `publish`                                                     | 发布的 Git tag                               |
+| `--access <level>`        | `publish`                                                     | 访问级别：`public`（默认）或 `restricted`    |
+| `-n, --dry-run`           | `publish`                                                     | 仅验证不发布                                 |
+| `-g, --group <path>`      | `publish`                                                     | 发布到指定分组（如 `kanyun/frontend`）       |
 | `-j, --json`              | `list`, `info`, `outdated`, `doctor`, `group`, `find`         | JSON 格式输出                                |
 | `-l, --limit <n>`         | `find`                                                        | 限制搜索结果数量                             |
 | `--skip-network`          | `doctor`                                                      | 跳过网络连通性检查                           |
@@ -293,12 +298,13 @@ reskill install @scope/private-skill --registry https://your-registry.com --toke
 
 | 变量                | 说明                            | 默认值                         |
 | ------------------- | ------------------------------- | ------------------------------ |
-| `RESKILL_CACHE_DIR` | 全局缓存目录                    | `~/.reskill-cache`             |
-| `RESKILL_TOKEN`     | 认证令牌（优先于 ~/.reskillrc） | -                              |
-| `RESKILL_REGISTRY`  | 默认 registry URL               | `https://registry.reskill.dev` |
-| `DEBUG`             | 启用调试日志                    | -                              |
-| `VERBOSE`           | 启用调试日志（与 `DEBUG` 等效） | -                              |
-| `NO_COLOR`          | 禁用彩色输出                    | -                              |
+| `RESKILL_CACHE_DIR`   | 全局缓存目录                    | `~/.reskill-cache`             |
+| `RESKILL_TOKEN`       | 认证令牌（优先于 ~/.reskillrc） | -                              |
+| `RESKILL_REGISTRY`    | 默认 registry URL               | `https://registry.reskill.dev` |
+| `RESKILL_NO_MANIFEST` | 跳过 `skills.json` 和 `skills.lock` 写入（设为 `1` 启用） | -              |
+| `DEBUG`               | 启用调试日志                    | -                              |
+| `VERBOSE`             | 启用调试日志（与 `DEBUG` 等效） | -                              |
+| `NO_COLOR`            | 禁用彩色输出                    | -                              |
 
 reskill 会在后台检查新版本，并在命令执行后提示升级信息。
 
