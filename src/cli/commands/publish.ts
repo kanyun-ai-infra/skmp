@@ -746,12 +746,12 @@ export const publishCommand = new Command('publish')
     '-r, --registry <url>',
     'Registry URL (or set RESKILL_REGISTRY env var, or defaults.publishRegistry in skills.json)',
   )
-  .option('-t, --tag <tag>', 'Git tag to publish')
+  .option('--tag <tag>', 'Git tag to publish')
   .option('--access <level>', 'Access level: public or restricted', 'public')
   .option('-n, --dry-run', 'Validate without publishing')
   .option('-y, --yes', 'Skip confirmation prompts')
   .option('-g, --group <path>', 'Publish skill into a group (e.g., "kanyun/frontend")')
-  .option('--token <token>', 'Auth token for registry API requests (for CI/CD)')
+  .option('-t, --token <token>', 'Auth token for registry API requests (for CI/CD)')
   .action(publishAction);
 
 export default publishCommand;

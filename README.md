@@ -79,7 +79,7 @@ npx reskill@latest <command>  # Or use npx directly
 | `--skip-manifest`         | `install`                                                     | Skip all `skills.json` and `skills.lock` writes (for platform integration) |
 | `-t, --token <token>`     | `install`, `find`, `group`, `publish`, `login`                | Auth token for registry API requests (for CI/CD)               |
 | `-r, --registry <url>`    | `install`, `find`, `group`, `publish`, `login`, `logout`, `whoami` | Registry URL override for registry-enabled commands       |
-| `-t, --tag <tag>`         | `publish`                                                     | Git tag to publish                                             |
+| `--tag <tag>`             | `publish`                                                     | Git tag to publish                                             |
 | `--access <level>`        | `publish`                                                     | Access level: `public` (default) or `restricted`               |
 | `-n, --dry-run`           | `publish`                                                     | Validate without publishing                                    |
 | `-g, --group <path>`      | `publish`                                                     | Publish skill into a group (e.g., `kanyun/frontend`)           |

@@ -79,7 +79,7 @@ npx reskill@latest <command>  # 或直接使用 npx
 | `--skip-manifest`         | `install`                                                     | 跳过 `skills.json` 和 `skills.lock` 写入（用于平台集成） |
 | `-t, --token <token>`     | `install`, `find`, `group`, `publish`, `login`                | 认证令牌（用于 CI/CD 访问私有 skill）        |
 | `-r, --registry <url>`    | `install`, `find`, `group`, `publish`, `login`, `logout`, `whoami` | 覆盖 registry URL（用于 registry 相关命令）  |
-| `-t, --tag <tag>`         | `publish`                                                     | 发布的 Git tag                               |
+| `--tag <tag>`             | `publish`                                                     | 发布的 Git tag                               |
 | `--access <level>`        | `publish`                                                     | 访问级别：`public`（默认）或 `restricted`    |
 | `-n, --dry-run`           | `publish`                                                     | 仅验证不发布                                 |
 | `-g, --group <path>`      | `publish`                                                     | 发布到指定分组（如 `kanyun/frontend`）       |
